@@ -1,0 +1,6 @@
+﻿  Renderer.cpp
+C:\Users\Kamil\Documents\_Projects\YARE\YARE\Renderer.cpp(83,113): warning C4244: 'argument': conversion from 'float' to 'int', possible loss of data
+C:\Users\Kamil\Documents\_Projects\YARE\YARE\Renderer.cpp(83,97): warning C4244: 'argument': conversion from 'float' to 'int', possible loss of data
+C:\Users\Kamil\Documents\_Projects\YARE\YARE\Renderer.cpp(132,94): warning C4244: 'argument': conversion from 'float' to 'UINT', possible loss of data
+C:\Users\Kamil\Documents\_Projects\YARE\YARE\Renderer.cpp(132,78): warning C4244: 'argument': conversion from 'float' to 'UINT64', possible loss of data
+  YARE.vcxproj -> C:\Users\Kamil\Documents\_Projects\YARE\x64\Debug\YARE.exe
