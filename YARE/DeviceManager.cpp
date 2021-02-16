@@ -2,6 +2,11 @@
 
 ComPtr<IDXGISwapChain3> DeviceManager::CreateSwapChain(HWND hwnd, ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<IDXGIFactory4> dxgiFactory, int width, int height, int bufferCount)
 {
+    assert(commandQueue);
+    assert(dxgiFactory);
+    assert(width > 0 && height > 0);
+    assert(bufferCount > 0);
+
     ComPtr<IDXGISwapChain3> swapChain3;
 
     DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
@@ -54,7 +59,7 @@ ComPtr<ID3D12Device5> DeviceManager::CreateDevice(ComPtr<IDXGIFactory4> dxgiFact
         ));
     }
 
-#if defined(_DEBUG_RTCP)
+#if defined(_DEBUG_YARE)
     ComPtr<ID3D12InfoQueue> pInfoQueue;
     if (SUCCEEDED(device.As(&pInfoQueue)))
     {
@@ -84,6 +89,8 @@ ComPtr<ID3D12Device5> DeviceManager::CreateDevice(ComPtr<IDXGIFactory4> dxgiFact
 
 ComPtr<ID3D12CommandQueue> DeviceManager::CreateCommandQueue(ComPtr<ID3D12Device2> device, D3D12_COMMAND_LIST_TYPE type)
 {
+    assert(device);
+
     ComPtr<ID3D12CommandQueue> commandQueue;
 
     D3D12_COMMAND_QUEUE_DESC desc{};
@@ -97,34 +104,74 @@ ComPtr<ID3D12CommandQueue> DeviceManager::CreateCommandQueue(ComPtr<ID3D12Device
     return commandQueue;
 }
 
-ComPtr<ID3D12DescriptorHeap> DeviceManager::CreateDescriptorHeap(ComPtr<ID3D12Device2> device, D3D12_DESCRIPTOR_HEAP_TYPE type, int numDescriptors) const
+ComPtr<ID3D12DescriptorHeap> DeviceManager::CreateDescriptorHeap(ComPtr<ID3D12Device2> device, int numDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE type, D3D12_DESCRIPTOR_HEAP_FLAGS flags /* = D3D12_DESCRIPTOR_HEAP_FLAG_NONE */)
 {
+    assert(device);
+
     ComPtr<ID3D12DescriptorHeap> heap;
 
     D3D12_DESCRIPTOR_HEAP_DESC desc{};
     desc.NumDescriptors = numDescriptors;
     desc.Type = type;
+    desc.Flags = flags;
 
     ThrowIfFailed(device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&heap)));
 
     return heap;
 }
 
-ComPtr<ID3D12CommandAllocator> DeviceManager::CreateCommandAllocator(ComPtr<ID3D12Device2> device, D3D12_COMMAND_LIST_TYPE type) const
+ComPtr<ID3D12CommandAllocator> DeviceManager::CreateCommandAllocator(ComPtr<ID3D12Device2> device, D3D12_COMMAND_LIST_TYPE type)
 {
+    assert(device);
+
     ComPtr<ID3D12CommandAllocator> commandAllocator;
     ThrowIfFailed(device->CreateCommandAllocator(type, IID_PPV_ARGS(&commandAllocator)));
 
     return commandAllocator;
 }
 
-ComPtr<ID3D12GraphicsCommandList4> DeviceManager::CreateCommandList(ComPtr<ID3D12Device2> device, ComPtr<ID3D12CommandAllocator> commandAllocator, D3D12_COMMAND_LIST_TYPE type) const
+ComPtr<ID3D12GraphicsCommandList4> DeviceManager::CreateCommandList(ComPtr<ID3D12Device2> device, ComPtr<ID3D12CommandAllocator> commandAllocator, D3D12_COMMAND_LIST_TYPE type)
 {
+    assert(device);
+    assert(commandAllocator);
+
     ComPtr<ID3D12GraphicsCommandList4> commandList;
     ThrowIfFailed(device->CreateCommandList(0, type, commandAllocator.Get(), nullptr, IID_PPV_ARGS(&commandList)));
     ThrowIfFailed(commandList->Close());
 
     return commandList;
+}
+
+ComPtr<ID3D12Resource> DeviceManager::CreateDepthStencilView(ComPtr<ID3D12Device2> device, ComPtr<ID3D12DescriptorHeap> dsvHeap, DXGI_FORMAT format, int width, int height, float clearDepthValue /* = 1.0f */, UINT8 clearStencilValue /* = 0 */)
+{
+    assert(device);
+    assert(dsvHeap);
+    assert(dsvHeap->GetCPUDescriptorHandleForHeapStart().ptr);
+
+    ComPtr<ID3D12Resource> depthStencil;
+
+    D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
+    depthStencilDesc.Format = format;
+    depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
+
+    D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
+    depthOptimizedClearValue.Format = format;
+    depthOptimizedClearValue.DepthStencil.Depth = clearDepthValue;
+    depthOptimizedClearValue.DepthStencil.Stencil = clearStencilValue;
+
+    ThrowIfFailed(device->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        D3D12_HEAP_FLAG_NONE,
+        &CD3DX12_RESOURCE_DESC::Tex2D(format, width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        &depthOptimizedClearValue,
+        IID_PPV_ARGS(&depthStencil)
+    ));
+
+    device->CreateDepthStencilView(depthStencil.Get(), &depthStencilDesc, dsvHeap->GetCPUDescriptorHandleForHeapStart());
+
+    return depthStencil;
 }
 
 void DeviceManager::GetHardwareAdapter(IDXGIFactory4* pFactory, IDXGIAdapter1** ppAdapter)
