@@ -17,7 +17,8 @@ struct PixelInputType
 float4 main(PixelInputType input) : SV_TARGET
 {
 	//return float4((float) input.textureID / 36.0f, 0, 0, 1);
-	return float4(g_texture.Sample(g_sampler, input.uv).rgb, 1.0f);
+	//return float4(g_texture.Sample(g_sampler, input.uv).rgb, 1.0f);
+	return float4(1.0f, 0.0f, 0.0f, 1.0f);
 }
 
 #endif //_PIXEL_SHADER_HLSL

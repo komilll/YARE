@@ -143,7 +143,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="DeviceManager.cpp" />
+    <ClCompile Include="InputManager.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="ModelClass.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="YARE.cpp" />
   </ItemGroup>
@@ -152,7 +154,9 @@
     <ClInclude Include="CBuffer.h" />
     <ClInclude Include="DeviceManager.h" />
     <ClInclude Include="Helpers.h" />
+    <ClInclude Include="InputManager.h" />
     <ClInclude Include="Main.h" />
+    <ClInclude Include="ModelClass.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="RaytracingShadersHelper.h" />
     <ClInclude Include="Renderer.h" />

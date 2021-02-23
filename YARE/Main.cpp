@@ -28,7 +28,7 @@ HRESULT Main::Run(std::shared_ptr<Renderer> renderer)
 {
     HRESULT result = S_OK;
 
-    //m_inputManager = std::shared_ptr<InputManager>(new InputManager());
+    m_inputManager = std::shared_ptr<InputManager>(new InputManager());
     //m_guiManager = std::shared_ptr<GuiManager>(new GuiManager(m_renderer->m_device.Get(), renderer.get()));
 
     m_isInitialized = true;
@@ -60,22 +60,22 @@ HRESULT Main::Run(std::shared_ptr<Renderer> renderer)
         }
         if (msg.message == WM_PAINT)
         {
-            ////Change camera position
-            //{
-            //    const float xStrengthPosition = m_renderer->m_cameraSpeed, yStrengthPosition = xStrengthPosition, zStrengthPosition = xStrengthPosition;
-            //    const float x = xStrengthPosition * (m_inputManager->IsKeyDown(VK_A) ? -1.0f : (m_inputManager->IsKeyDown(VK_D) ? 1.0f : 0.0f));
-            //    const float y = yStrengthPosition * (m_inputManager->IsKeyDown(VK_E) ? 1.0f : (m_inputManager->IsKeyDown(VK_Q) ? -1.0f : 0.0f));
-            //    const float z = zStrengthPosition * (m_inputManager->IsKeyDown(VK_W) ? 1.0f : (m_inputManager->IsKeyDown(VK_S) ? -1.0f : 0.0f));
-            //    renderer->AddCameraPosition(x, y, z);
-            //}
-            ////Change camera rotation
-            //{
-            //    constexpr float xStrengthRotation = 1.f, yStrengthRotation = xStrengthRotation;
-            //    const float x = xStrengthRotation * (m_inputManager->IsKeyDown(VK_LEFT) ? -1.0f : (m_inputManager->IsKeyDown(VK_RIGHT) ? 1.0f : 0.0f));
-            //    const float y = yStrengthRotation * (m_inputManager->IsKeyDown(VK_UP) ? -1.0f : (m_inputManager->IsKeyDown(VK_DOWN) ? 1.0f : 0.0f));
-            //    renderer->AddCameraRotation(y, x, 0.0f);
-            //}
-            //// Change rendering mode
+            //Change camera position
+            {
+                const float xStrengthPosition = m_renderer->m_cameraSpeed, yStrengthPosition = xStrengthPosition, zStrengthPosition = xStrengthPosition;
+                const float x = xStrengthPosition * (m_inputManager->IsKeyDown(VK_A) ? -1.0f : (m_inputManager->IsKeyDown(VK_D) ? 1.0f : 0.0f));
+                const float y = yStrengthPosition * (m_inputManager->IsKeyDown(VK_E) ? 1.0f : (m_inputManager->IsKeyDown(VK_Q) ? -1.0f : 0.0f));
+                const float z = zStrengthPosition * (m_inputManager->IsKeyDown(VK_W) ? 1.0f : (m_inputManager->IsKeyDown(VK_S) ? -1.0f : 0.0f));
+                renderer->AddCameraPosition(x, y, z);
+            }
+            //Change camera rotation
+            {
+                constexpr float xStrengthRotation = 1.f, yStrengthRotation = xStrengthRotation;
+                const float x = xStrengthRotation * (m_inputManager->IsKeyDown(VK_LEFT) ? -1.0f : (m_inputManager->IsKeyDown(VK_RIGHT) ? 1.0f : 0.0f));
+                const float y = yStrengthRotation * (m_inputManager->IsKeyDown(VK_UP) ? -1.0f : (m_inputManager->IsKeyDown(VK_DOWN) ? 1.0f : 0.0f));
+                renderer->AddCameraRotation(y, x, 0.0f);
+            }
+            // Change rendering mode
             //{
             //    if (m_inputManager->IsKeyDown(VK_R))
             //    {
@@ -143,13 +143,13 @@ LRESULT Main::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 break;
                 }
             default:
-                //m_inputManager->KeyDown(static_cast<unsigned int>(wParam));
+                m_inputManager->KeyDown(static_cast<unsigned int>(wParam));
                 break;
             }
             return 0;
 
         case WM_KEYUP:
-            //m_inputManager->KeyUp(static_cast<unsigned int>(wParam));
+            m_inputManager->KeyUp(static_cast<unsigned int>(wParam));
             return 0;
 
         case WM_DESTROY:

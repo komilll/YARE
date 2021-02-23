@@ -11,6 +11,7 @@
 #include "CBuffer.h"
 #include "BufferStructures.h"
 #include "RaytracingShadersHelper.h"
+#include "ModelClass.h"
 
 using namespace DirectX;
 typedef std::array<D3D12_INPUT_ELEMENT_DESC, 6> BasicInputLayout;
@@ -20,6 +21,8 @@ typedef std::array<D3D12_INPUT_ELEMENT_DESC, 6> BasicInputLayout;
 
 class Renderer
 {
+	friend class Main;
+
 public:
 	XMFLOAT2 GetWindowSize() const { return m_windowSize; };
 
@@ -43,6 +46,13 @@ public:
 
 	void CreateTextureFromFileRTCP(ComPtr<ID3D12Resource>& texture, ComPtr<ID3D12GraphicsCommandList4> commandList, const wchar_t* path, ComPtr<ID3D12Resource>& uploadHeap, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES InitialResourceState);
 
+	void AddCameraPosition(float x, float y, float z);
+	void AddCameraPosition(XMFLOAT3 addPos);
+	void AddCameraRotation(float x, float y, float z);
+	void AddCameraRotation(XMFLOAT3 addRot);
+
+	void CreateViewAndPerspective();
+
 	void Compile_Shader(D3D12ShaderCompilerInfo& compilerInfo, D3D12ShaderInfo& info, IDxcBlob** blob) const;
 	void Compile_Shader(D3D12ShaderCompilerInfo& compilerInfo, RtProgram& program) const;
 	void Compile_Shader(_In_ LPCWSTR pFileName, _In_reads_opt_(_Inexpressible_(pDefines->Name != NULL)) CONST D3D_SHADER_MACRO* pDefines, _In_opt_ ID3DInclude* pInclude, _In_ LPCSTR pEntrypoint, _In_ LPCSTR pTarget, _In_ UINT Flags1, _In_ UINT Flags2, _Out_ ID3DBlob** ppCode) const;
@@ -58,6 +68,15 @@ private:
 
 private:
 	static constexpr int m_frameCount = 2;
+	static constexpr float Z_NEAR = 10.f;
+	static constexpr float Z_FAR = 20000.0f;
+	bool FREEZE_CAMERA = false;
+
+	// Camera settings
+	float m_cameraSpeed = 0.25f;
+	XMFLOAT3 m_cameraPosition{ 0,0,0 };
+	XMFLOAT3 m_cameraRotation{ 0,0,0 };
+	XMFLOAT3 m_cameraPositionStoredInFrame{ 0,0,0 };
 
 	XMFLOAT2 m_windowSize = XMFLOAT2{ 1280, 720 };
 
@@ -94,6 +113,9 @@ private:
 	ComPtr<ID3D12Resource> m_depthStencil;
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 	ComPtr<ID3D12Resource> m_depthBuffer = NULL;
+
+	// Models
+	std::shared_ptr<ModelClass> m_modelSphere = NULL;
 
 	// Textures
 	ComPtr<ID3D12Resource> m_backBuffers[m_frameCount];

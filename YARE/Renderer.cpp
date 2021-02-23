@@ -19,7 +19,7 @@ void Renderer::OnInit(HWND hwnd)
     m_scissorRect.bottom = static_cast<LONG>(m_windowSize.y);
 
     // Create initial view and perspective matrix
-    //CreateViewAndPerspective();
+    CreateViewAndPerspective();
 
     // Preparing devices, resources, views to enable rendering
     LoadPipeline(hwnd);
@@ -29,7 +29,21 @@ void Renderer::OnInit(HWND hwnd)
 // Perform changes in the scene before calling rendering functions
 void Renderer::OnUpdate()
 {
+    // Update vertexShader.hlsl
+    {
+        // Update data for single rasterized object
+        m_constantBuffer.value.world = XMMatrixIdentity();
+        m_constantBuffer.Update();
 
+        // Update data for skybox rendering
+        //m_constantBufferSkybox.value = m_constantBuffer.value;
+        //XMFLOAT3 pos = XMFLOAT3{ m_cameraPosition.x - 0.5f, m_cameraPosition.y - 0.5f, m_cameraPosition.z - 0.5f };
+        //m_constantBufferSkybox.value.world = XMMatrixIdentity();
+        //m_constantBufferSkybox.value.world = XMMatrixMultiply(m_constantBufferSkybox.value.world, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+        //m_constantBufferSkybox.value.world = XMMatrixMultiply(m_constantBufferSkybox.value.world, XMMatrixTranslation(pos.x, pos.y, pos.z));
+        //m_constantBufferSkybox.value.world = XMMatrixTranspose(m_constantBufferSkybox.value.world);
+        //m_constantBufferSkybox.Update();
+    }
 }
 
 void Renderer::OnRender()
@@ -227,7 +241,7 @@ void Renderer::LoadAssets()
     // Create the vertex buffer.
     {
         //m_modelCube = std::shared_ptr<ModelClass>(new ModelClass("cube.obj", m_device, m_commandList));
-        //m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass("sphere.obj", m_device, m_commandList));
+        m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass("sphere.obj", m_device, m_commandList));
         //m_modelBuddha = std::shared_ptr<ModelClass>(new ModelClass("happy-buddha.fbx", m_device, m_commandList));
         //m_modelPinkRoom = std::shared_ptr<ModelClass>(new ModelClass("SunTemple.fbx", m_device, m_commandList, modelHeap));
         //m_modelFullscreen = std::shared_ptr<ModelClass>(new ModelClass());
@@ -448,6 +462,93 @@ void Renderer::CreateTextureFromFileRTCP(ComPtr<ID3D12Resource>& texture, ComPtr
     }
 }
 
+void Renderer::AddCameraPosition(float x, float y, float z)
+{
+    if (x != 0 || y != 0 || z != 0)
+    {
+        m_cameraPositionStoredInFrame.x = x;
+        m_cameraPositionStoredInFrame.y = y;
+        m_cameraPositionStoredInFrame.z = z;
+        CreateViewAndPerspective();
+    }
+}
+
+void Renderer::AddCameraPosition(XMFLOAT3 addPos)
+{
+    AddCameraPosition(addPos.x, addPos.y, addPos.z);
+}
+
+void Renderer::AddCameraRotation(float x, float y, float z)
+{
+    if (x != 0 || y != 0 || z != 0)
+    {
+        m_cameraRotation.x += x;
+        m_cameraRotation.y += y;
+
+        if (m_cameraRotation.y > 360.0f)
+            m_cameraRotation.y -= 360.0f;
+        else if (m_cameraRotation.y < -360.0f)
+            m_cameraRotation.y += 360.0f;
+        // Avoid gimbal lock problem, by avoiding reaching 90 deg
+        m_cameraRotation.x = m_cameraRotation.x >= 90.0f ? 89.9f : (m_cameraRotation.x <= -90.0f ? -89.9f : m_cameraRotation.x);
+
+        CreateViewAndPerspective();
+    }
+}
+
+void Renderer::AddCameraRotation(XMFLOAT3 addRot)
+{
+    AddCameraPosition(addRot.x, addRot.y, addRot.z);
+}
+
+void Renderer::CreateViewAndPerspective()
+{
+    const DirectX::XMVECTOR up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.f);
+    constexpr float conv{ 0.0174532925f };
+
+    //Update camera position for shader buffer
+    if (!FREEZE_CAMERA)
+    {
+        m_sceneBuffer.value.cameraPosition = XMFLOAT4{ m_cameraPosition.x, m_cameraPosition.y, m_cameraPosition.z, 1.0f };
+    }
+
+    // Create the rotation matrix from the yaw, pitch, and roll values.
+    const XMMATRIX rotationMatrix = XMMatrixRotationRollPitchYaw(m_cameraRotation.x * conv, m_cameraRotation.y * conv, m_cameraRotation.z * conv);
+
+    //Move camera along direction we look at
+    if (m_cameraPositionStoredInFrame.x != 0 || m_cameraPositionStoredInFrame.y != 0 || m_cameraPositionStoredInFrame.z != 0)
+    {
+        const XMMATRIX YrotationMatrix = XMMatrixRotationY(m_cameraRotation.y * conv);
+        const XMVECTOR camRight = XMVector3TransformCoord(XMVECTOR{ 1,0,0,0 }, YrotationMatrix);
+        const XMVECTOR camForward = XMVector3TransformCoord(XMVECTOR{ 0, 0, 1, 0 }, rotationMatrix);
+
+        const XMVECTOR addPos = camRight * m_cameraPositionStoredInFrame.x + camForward * m_cameraPositionStoredInFrame.z;
+        m_cameraPosition.x += addPos.m128_f32[0];
+        m_cameraPosition.y += (addPos.m128_f32[1] + m_cameraPositionStoredInFrame.y);
+        m_cameraPosition.z += addPos.m128_f32[2];
+
+        m_cameraPositionStoredInFrame = XMFLOAT3{ 0,0,0 };
+        if (m_cameraPosition.x == 0.0f && m_cameraPosition.y == 0.0f && m_cameraPosition.z == 0.0f)
+        {
+            m_cameraPosition.x = FLT_MIN;
+        }
+    }
+    const DirectX::XMVECTOR eye = DirectX::XMVectorSet(m_cameraPosition.x, m_cameraPosition.y, m_cameraPosition.z, 0.0f);
+
+    //Setup target (look at object position)
+    XMVECTOR target = XMVector3TransformCoord(DirectX::XMVECTOR{ 0, 0, 1, 0 }, rotationMatrix);
+    target = XMVector3Normalize(target);
+    target = { m_cameraPosition.x + target.m128_f32[0], m_cameraPosition.y + target.m128_f32[1], m_cameraPosition.z + target.m128_f32[2], 0.0f };
+
+    //Create view matrix
+    m_constantBuffer.value.view = DirectX::XMMatrixTranspose(DirectX::XMMatrixLookAtLH(eye, target, up));
+
+    //Create perspective matrix
+    constexpr float FOV = 3.14f / 4.0f;
+    float aspectRatio = m_windowSize.x / m_windowSize.y;
+    m_constantBuffer.value.projection = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(FOV, aspectRatio, Z_NEAR, Z_FAR));
+}
+
 void Renderer::PopulateCommandList()
 {
     m_constantBufferSkybox.Update();
@@ -485,9 +586,9 @@ void Renderer::PopulateCommandList()
     const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-    //m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    //m_commandList->IASetVertexBuffers(0, 1, &m_modelPinkRoom->GetVertexBufferView());
-    //m_commandList->DrawInstanced(m_modelPinkRoom->GetIndicesCount(), 1, 0, 0);
+    m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_commandList->IASetVertexBuffers(0, 1, &m_modelSphere->GetVertexBufferView());
+    m_commandList->DrawInstanced(m_modelSphere->GetIndicesCount(), 1, 0, 0);
 
     // Indicate that the back buffer will now be used to present.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
