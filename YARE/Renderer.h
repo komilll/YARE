@@ -22,6 +22,7 @@ typedef std::array<D3D12_INPUT_ELEMENT_DESC, 6> BasicInputLayout;
 class Renderer
 {
 	friend class Main;
+	friend class GuiManager;
 
 public:
 	XMFLOAT2 GetWindowSize() const { return m_windowSize; };
@@ -66,10 +67,13 @@ private:
 	void WaitForPreviousFrame();
 	void MoveToNextFrame();
 
+	static void CreateSRV(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc);
+	static void CreateSRV_Texture2D(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, int mipLevels = 1, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = { DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING });
+
 private:
 	static constexpr int m_frameCount = 2;
-	static constexpr float Z_NEAR = 10.f;
-	static constexpr float Z_FAR = 20000.0f;
+	static constexpr float Z_NEAR = 0.5f;
+	static constexpr float Z_FAR = 2000.0f;
 	bool FREEZE_CAMERA = false;
 
 	// Camera settings
@@ -119,6 +123,7 @@ private:
 
 	// Textures
 	ComPtr<ID3D12Resource> m_backBuffers[m_frameCount];
+	ComPtr<ID3D12Resource> m_pebblesTexture;
 
 	// Root signatures/PSO
 	ComPtr<ID3D12RootSignature> m_rootSignature = NULL;

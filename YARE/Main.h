@@ -4,7 +4,7 @@
 //#include "DeviceManager.h"
 #include "Renderer.h"
 #include "InputManager.h"
-//#include "GuiManager.h"
+#include "GuiManager.h"
 
 class Main
 {
@@ -32,7 +32,7 @@ private:
 
 static std::shared_ptr<Renderer> m_renderer;
 static std::shared_ptr<InputManager> m_inputManager;
-//static std::shared_ptr<GuiManager> m_guiManager;
+static std::shared_ptr<GuiManager> m_guiManager;
 static bool m_isInitialized;
 static Main* self;
 static std::wstring m_windowClassName = L"YARE";

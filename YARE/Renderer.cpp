@@ -49,8 +49,8 @@ void Renderer::OnUpdate()
 void Renderer::OnRender()
 {
     // Prepare commands to execute
-    PopulateCommandList(); // Moved to main.cpp
-    CloseCommandList();
+    //PopulateCommandList(); // Moved to main.cpp
+    //CloseCommandList();
     
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get(), m_commandListSkybox.Get() };
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
@@ -211,6 +211,8 @@ void Renderer::LoadAssets()
         auto inputElementDescs = CreateBasicInputLayout();
         CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = CreateDefaultDepthStencilDesc();
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignature);
+        psoDesc.RasterizerState.FrontCounterClockwise = true;
+        psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
     }
 
@@ -294,7 +296,9 @@ void Renderer::LoadAssets()
     // Create texture for rasterized object
     {
         //CreateTextureFromFileRTCP(m_dfgTexture, m_commandList, L"DFG.dds", uploadHeap);
-        //CreateTextureFromFileRTCP(m_pebblesTexture, m_commandList, L"Pebles.png", uploadHeap, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        CreateTextureFromFileRTCP(m_pebblesTexture, m_commandList, L"Pebles.png", uploadHeap, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        CreateSRV_Texture2D(m_pebblesTexture, m_srvHeap.Get(), 0, m_device.Get());
+
         //CreateSRV_Texture2DArray(m_modelPinkRoom->GetTextureResourcesAlbedo(), m_srvHeap.Get(), 0, m_device.Get());
         //CreateSRV_Texture2D(m_rtLambertTexture, m_srvHeap.Get(), 0, m_device.Get());
         //CreateSRV_Texture2D(m_rtGGXTexture, m_srvHeap.Get(), 0, m_device.Get());
@@ -661,6 +665,18 @@ void Renderer::MoveToNextFrame()
 
     // Set the fence value for the next frame.
     m_fenceValues[m_frameIndex] = currentFenceValue + 1;
+}
+
+void Renderer::CreateSRV(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc)
+{
+    CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(srvHeap->GetCPUDescriptorHandleForHeapStart(), srvIndex, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
+    device->CreateShaderResourceView(resource.Get(), &srvDesc, srvHandle);
+}
+
+void Renderer::CreateSRV_Texture2D(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, int mipLevels, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc)
+{
+    srvDesc.Texture2D.MipLevels = mipLevels;
+    CreateSRV(resource, srvHeap, srvIndex, device, srvDesc);
 }
 
 void Renderer::Compile_Shader(D3D12ShaderCompilerInfo& compilerInfo, D3D12ShaderInfo& info, IDxcBlob** blob) const

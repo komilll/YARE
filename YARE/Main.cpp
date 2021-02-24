@@ -29,24 +29,24 @@ HRESULT Main::Run(std::shared_ptr<Renderer> renderer)
     HRESULT result = S_OK;
 
     m_inputManager = std::shared_ptr<InputManager>(new InputManager());
-    //m_guiManager = std::shared_ptr<GuiManager>(new GuiManager(m_renderer->m_device.Get(), renderer.get()));
+    m_guiManager = std::shared_ptr<GuiManager>(new GuiManager(m_renderer->m_device.Get(), renderer.get()));
 
     m_isInitialized = true;
     ::ShowWindow(m_hwnd, SW_SHOW);
 
     // Setup Dear ImGui context
-    //IMGUI_CHECKVERSION();
-    //ImGui::CreateContext();
-    //ImGuiIO& io = ImGui::GetIO(); (void)io;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
     // Setup Dear ImGui style
-    //ImGui::StyleColorsDark();
+    ImGui::StyleColorsDark();
     //ImGui::StyleColorsClassic();
 
     // Setup Platform/Renderer bindings
-    //ImGui_ImplWin32_Init(m_hwnd);
+    ImGui_ImplWin32_Init(m_hwnd);
 
     bool bGotMsg;
     MSG msg = {};
@@ -96,16 +96,16 @@ HRESULT Main::Run(std::shared_ptr<Renderer> renderer)
 }
 
 // Forward declare message handler from imgui_impl_win32.cpp
-//extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 LRESULT Main::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    //if (ImGui::GetCurrentContext() == NULL)
-    //{
-    //    ImGui::CreateContext();
-    //}
+    if (ImGui::GetCurrentContext() == NULL)
+    {
+        ImGui::CreateContext();
+    }
 
-    //if (ImGui_ImplWin32_WndProcHandler(hwnd, message, wParam, lParam))
-    //    return true;
+    if (ImGui_ImplWin32_WndProcHandler(hwnd, message, wParam, lParam))
+        return true;
 
     if (m_isInitialized)
     {
@@ -119,9 +119,9 @@ LRESULT Main::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         case WM_PAINT:
             m_renderer->OnUpdate();
 
-            //m_renderer->PopulateCommandList();
+            m_renderer->PopulateCommandList();
             self->RenderGUI();
-            //m_renderer->CloseCommandList();
+            m_renderer->CloseCommandList();
             m_renderer->OnRender();
             break;
 
@@ -267,13 +267,13 @@ void Main::ToggleFullscreen()
 
 void Main::RenderGUI()
 {
-    //// Render ImGui
-    //auto commandList = m_renderer->DO_RAYTRACING ? m_renderer->m_commandList : m_renderer->m_commandListSkybox;
+    // Render ImGui
+    auto commandList = /*m_renderer->DO_RAYTRACING*/ true ? m_renderer->m_commandList : m_renderer->m_commandListSkybox;
 
-    //CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_renderer->m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_renderer->m_frameIndex, m_renderer->m_rtvDescriptorSize);
-    //CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_renderer->m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
-    //commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-    //commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderer->m_backBuffers[m_renderer->m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-    //m_guiManager->Render(commandList.Get());
-    //commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderer->m_backBuffers[m_renderer->m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_renderer->m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_renderer->m_frameIndex, m_renderer->m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_renderer->m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+    commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderer->m_backBuffers[m_renderer->m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+    m_guiManager->Render(commandList.Get());
+    commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderer->m_backBuffers[m_renderer->m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 }
