@@ -15,8 +15,9 @@ TextureCube<float4> skyboxTexture : register(t0);
 
 float4 main(PixelInputType input) : SV_TARGET
 {
-    //return float4(normalize(g_viewerPosition.xyz - input.positionWS) * float3(1, 1, -1), 1.0f);
+	//return float4(normalize(input.positionWS - g_sceneCB.cameraPosition.xyz) * float3(1, 1, -1), 1.0f);
 	return skyboxTexture.Sample(baseSampler, normalize(input.positionWS - g_sceneCB.cameraPosition.xyz) * float3(1, 1, -1));
+	//return float4(1, 0, 0, 1);
 }
 
 #endif // _PS_SKYBOX_HLSL_

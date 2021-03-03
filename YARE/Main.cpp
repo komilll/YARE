@@ -268,7 +268,7 @@ void Main::ToggleFullscreen()
 void Main::RenderGUI()
 {
     // Render ImGui
-    auto commandList = /*m_renderer->DO_RAYTRACING*/ true ? m_renderer->m_commandList : m_renderer->m_commandListSkybox;
+    auto commandList = /*m_renderer->DO_RAYTRACING ? m_renderer->m_commandList : */ m_renderer->m_commandListSkybox;
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_renderer->m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_renderer->m_frameIndex, m_renderer->m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_renderer->m_dsvHeap->GetCPUDescriptorHandleForHeapStart());

@@ -13,7 +13,7 @@ ComPtr<IDXGISwapChain3> DeviceManager::CreateSwapChain(HWND hwnd, ComPtr<ID3D12C
     swapChainDesc.BufferCount = bufferCount;
     swapChainDesc.BufferDesc.Width = width;
     swapChainDesc.BufferDesc.Height = height;
-    swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.OutputWindow = hwnd;

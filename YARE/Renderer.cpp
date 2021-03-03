@@ -18,12 +18,17 @@ void Renderer::OnInit(HWND hwnd)
     m_scissorRect.right = static_cast<LONG>(m_windowSize.x);
     m_scissorRect.bottom = static_cast<LONG>(m_windowSize.y);
 
+    m_cameraPosition = XMFLOAT3{ 0, 0, -60.0f };
+
     // Create initial view and perspective matrix
     CreateViewAndPerspective();
 
     // Preparing devices, resources, views to enable rendering
     LoadPipeline(hwnd);
     LoadAssets();
+
+    //
+    CreateUploadHeapRTCP(m_device.Get(), m_sceneBuffer);
 }
 
 // Perform changes in the scene before calling rendering functions
@@ -36,13 +41,22 @@ void Renderer::OnUpdate()
         m_constantBuffer.Update();
 
         // Update data for skybox rendering
-        //m_constantBufferSkybox.value = m_constantBuffer.value;
-        //XMFLOAT3 pos = XMFLOAT3{ m_cameraPosition.x - 0.5f, m_cameraPosition.y - 0.5f, m_cameraPosition.z - 0.5f };
-        //m_constantBufferSkybox.value.world = XMMatrixIdentity();
-        //m_constantBufferSkybox.value.world = XMMatrixMultiply(m_constantBufferSkybox.value.world, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-        //m_constantBufferSkybox.value.world = XMMatrixMultiply(m_constantBufferSkybox.value.world, XMMatrixTranslation(pos.x, pos.y, pos.z));
-        //m_constantBufferSkybox.value.world = XMMatrixTranspose(m_constantBufferSkybox.value.world);
-        //m_constantBufferSkybox.Update();
+        m_constantBufferSkybox.value = m_constantBuffer.value;
+        XMFLOAT3 pos = XMFLOAT3{ m_cameraPosition.x - 0.5f, m_cameraPosition.y - 0.5f, m_cameraPosition.z - 0.5f };
+        m_constantBufferSkybox.value.world = XMMatrixIdentity();
+        m_constantBufferSkybox.value.world = XMMatrixMultiply(m_constantBufferSkybox.value.world, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+        m_constantBufferSkybox.value.world = XMMatrixMultiply(m_constantBufferSkybox.value.world, XMMatrixTranslation(pos.x, pos.y, pos.z));
+        m_constantBufferSkybox.value.world = XMMatrixTranspose(m_constantBufferSkybox.value.world);
+        m_constantBufferSkybox.Update();
+    }
+
+    // Update raygeneration cbuffer - scene CB
+    {
+        XMMATRIX viewProj = XMMatrixMultiply(XMMatrixTranspose(m_constantBuffer.value.view), XMMatrixTranspose(m_constantBuffer.value.projection));
+        m_sceneBuffer.value.projectionToWorld = XMMatrixTranspose(XMMatrixInverse(nullptr, viewProj));
+        m_sceneBuffer.value.frameCount++;
+        m_sceneBuffer.value.frameCount %= INT_MAX;
+        m_sceneBuffer.Update();
     }
 }
 
@@ -50,7 +64,6 @@ void Renderer::OnRender()
 {
     // Prepare commands to execute
     //PopulateCommandList(); // Moved to main.cpp
-    //CloseCommandList();
     
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get(), m_commandListSkybox.Get() };
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
@@ -93,7 +106,7 @@ void Renderer::LoadPipeline(HWND hwnd)
     // Create device, command queue and swap chain
     m_device = DeviceManager::CreateDevice(dxgiFactory);
     m_commandQueue = DeviceManager::CreateCommandQueue(m_device, D3D12_COMMAND_LIST_TYPE_DIRECT);
-    m_swapChain = DeviceManager::CreateSwapChain(hwnd, m_commandQueue, dxgiFactory, m_windowSize.x, m_windowSize.y, m_frameCount);
+    m_swapChain = DeviceManager::CreateSwapChain(hwnd, m_commandQueue, dxgiFactory, static_cast<int>(m_windowSize.x), static_cast<int>(m_windowSize.y), m_frameCount);
 
     // This sample does not support fullscreen transitions.
     ThrowIfFailed(dxgiFactory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
@@ -131,7 +144,7 @@ void Renderer::LoadPipeline(HWND hwnd)
         //ThrowIfFailed(m_device->CreateCommittedResource(
         //    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         //    D3D12_HEAP_FLAG_NONE,
-        //    &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_windowSize.x, m_windowSize.y, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
+        //    &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, static_cast<UINT>(m_windowSize.x), static_cast<UINT>(m_windowSize.y), 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
         //    D3D12_RESOURCE_STATE_DEPTH_WRITE,
         //    &depthOptimizedClearValue,
         //    IID_PPV_ARGS(&m_depthStencil)
@@ -139,7 +152,7 @@ void Renderer::LoadPipeline(HWND hwnd)
 
         //m_device->CreateDepthStencilView(m_depthStencil.Get(), &depthStencilDesc, m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
 
-        m_depthStencil = DeviceManager::CreateDepthStencilView(m_device, m_dsvHeap, DXGI_FORMAT_D32_FLOAT, m_windowSize.x, m_windowSize.y);
+        m_depthStencil = DeviceManager::CreateDepthStencilView(m_device, m_dsvHeap, DXGI_FORMAT_D32_FLOAT, static_cast<int>(m_windowSize.x), static_cast<int>(m_windowSize.y));
     }
 
     // Create frame resources.
@@ -229,6 +242,7 @@ void Renderer::LoadAssets()
         CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = CreateDefaultDepthStencilDesc();
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureSkybox);
+        psoDesc.RasterizerState.FrontCounterClockwise = true;
         psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 
@@ -242,7 +256,7 @@ void Renderer::LoadAssets()
     ComPtr<ID3D12Resource> modelHeap;
     // Create the vertex buffer.
     {
-        //m_modelCube = std::shared_ptr<ModelClass>(new ModelClass("cube.obj", m_device, m_commandList));
+        m_modelCube = std::shared_ptr<ModelClass>(new ModelClass("cube.obj", m_device, m_commandList));
         m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass("sphere.obj", m_device, m_commandList));
         //m_modelBuddha = std::shared_ptr<ModelClass>(new ModelClass("happy-buddha.fbx", m_device, m_commandList));
         //m_modelPinkRoom = std::shared_ptr<ModelClass>(new ModelClass("SunTemple.fbx", m_device, m_commandList, modelHeap));
@@ -277,7 +291,6 @@ void Renderer::LoadAssets()
         m_constantBufferSkybox.resource->Unmap(0, &readRange);
     }
 
-
 #if (_WIN32_WINNT >= 0x0A00 /*_WIN32_WINNT_WIN10*/)
     Microsoft::WRL::Wrappers::RoInitializeWrapper initialize(RO_INIT_MULTITHREADED);
     if (FAILED(initialize)) {
@@ -308,8 +321,8 @@ void Renderer::LoadAssets()
     ComPtr<ID3D12Resource> skyboxUploadHeap;
     // Create skybox texture
     {
-        //CreateTextureFromFileRTCP(m_skyboxTexture, m_commandListSkybox, L"Skyboxes/cubemap.dds", skyboxUploadHeap);
-        //CreateSRV_TextureCube(m_skyboxTexture, m_srvHeap.Get(), 1, m_device.Get());
+        CreateTextureFromFileRTCP(m_skyboxTexture, m_commandListSkybox, L"Skyboxes/cubemap.dds", skyboxUploadHeap);
+        CreateSRV_TextureCube(m_skyboxTexture, m_srvHeap.Get(), 1, m_device.Get());
     }
 
     // Close the command list and execute it to begin the initial GPU setup.
@@ -395,7 +408,7 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC Renderer::CreateDefaultPSO(BasicInputLayout i
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     psoDesc.SampleDesc.Count = 1;
     psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
@@ -418,6 +431,30 @@ void Renderer::InitShaderCompiler(D3D12ShaderCompilerInfo& shaderCompiler) const
     ThrowIfFailed(shaderCompiler.DxcDllHelper.Initialize());
     ThrowIfFailed(shaderCompiler.DxcDllHelper.CreateInstance(CLSID_DxcCompiler, &shaderCompiler.compiler));
     ThrowIfFailed(shaderCompiler.DxcDllHelper.CreateInstance(CLSID_DxcLibrary, &shaderCompiler.library));
+}
+
+void Renderer::CreateTexture2D(ComPtr<ID3D12Resource>& texture, UINT64 width, UINT height, DXGI_FORMAT format, D3D12_TEXTURE_LAYOUT layout, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES InitialResourceState)
+{
+    D3D12_RESOURCE_DESC desc = {};
+    desc.DepthOrArraySize = 1;
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    desc.Format = format;
+    desc.Flags = flags;
+    desc.Width = width;
+    desc.Height = height;
+    desc.Layout = layout;
+    desc.MipLevels = 1;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+
+    ThrowIfFailed(m_device->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        D3D12_HEAP_FLAG_NONE,
+        &desc,
+        InitialResourceState,
+        nullptr,
+        IID_PPV_ARGS(&texture)
+    ));
 }
 
 void Renderer::CreateTextureFromFileRTCP(ComPtr<ID3D12Resource>& texture, ComPtr<ID3D12GraphicsCommandList4> commandList, const wchar_t* path, ComPtr<ID3D12Resource>& uploadHeap, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES InitialResourceState)
@@ -510,12 +547,6 @@ void Renderer::CreateViewAndPerspective()
     const DirectX::XMVECTOR up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.f);
     constexpr float conv{ 0.0174532925f };
 
-    //Update camera position for shader buffer
-    if (!FREEZE_CAMERA)
-    {
-        m_sceneBuffer.value.cameraPosition = XMFLOAT4{ m_cameraPosition.x, m_cameraPosition.y, m_cameraPosition.z, 1.0f };
-    }
-
     // Create the rotation matrix from the yaw, pitch, and roll values.
     const XMMATRIX rotationMatrix = XMMatrixRotationRollPitchYaw(m_cameraRotation.x * conv, m_cameraRotation.y * conv, m_cameraRotation.z * conv);
 
@@ -544,6 +575,12 @@ void Renderer::CreateViewAndPerspective()
     target = XMVector3Normalize(target);
     target = { m_cameraPosition.x + target.m128_f32[0], m_cameraPosition.y + target.m128_f32[1], m_cameraPosition.z + target.m128_f32[2], 0.0f };
 
+    //Update camera position for shader buffer
+    if (!FREEZE_CAMERA)
+    {
+        m_sceneBuffer.value.cameraPosition = XMFLOAT4{ m_cameraPosition.x, m_cameraPosition.y, m_cameraPosition.z, 1.0f };
+    }
+
     //Create view matrix
     m_constantBuffer.value.view = DirectX::XMMatrixTranspose(DirectX::XMMatrixLookAtLH(eye, target, up));
 
@@ -555,8 +592,8 @@ void Renderer::CreateViewAndPerspective()
 
 void Renderer::PopulateCommandList()
 {
-    m_constantBufferSkybox.Update();
-    m_sceneBuffer.Update();
+    //m_constantBufferSkybox.Update();
+    //m_sceneBuffer.Update();
 
     //...
 
@@ -602,28 +639,28 @@ void Renderer::PopulateCommandList()
     ThrowIfFailed(m_commandAllocatorsSkybox[m_frameIndex]->Reset());
     ThrowIfFailed(m_commandListSkybox->Reset(m_commandAllocatorsSkybox[m_frameIndex].Get(), m_pipelineStateSkybox.Get()));
 
-    //m_commandListSkybox->SetGraphicsRootSignature(m_rootSignatureSkybox.Get());
-    //m_commandListSkybox->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-    //m_commandListSkybox->SetGraphicsRootDescriptorTable(0, srvHandle1);
+    m_commandListSkybox->SetGraphicsRootSignature(m_rootSignatureSkybox.Get());
+    m_commandListSkybox->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+    m_commandListSkybox->SetGraphicsRootDescriptorTable(0, srvHandle1);
 
-    //m_commandListSkybox->SetGraphicsRootConstantBufferView(1, m_constantBufferSkybox.resource->GetGPUVirtualAddress());
-    //m_commandListSkybox->SetGraphicsRootConstantBufferView(2, m_sceneBuffer.resource->GetGPUVirtualAddress());
+    m_commandListSkybox->SetGraphicsRootConstantBufferView(1, m_constantBufferSkybox.resource->GetGPUVirtualAddress());
+    m_commandListSkybox->SetGraphicsRootConstantBufferView(2, m_sceneBuffer.resource->GetGPUVirtualAddress());
 
-    //m_commandListSkybox->RSSetViewports(1, &m_viewport);
-    //m_commandListSkybox->RSSetScissorRects(1, &m_scissorRect);
+    m_commandListSkybox->RSSetViewports(1, &m_viewport);
+    m_commandListSkybox->RSSetScissorRects(1, &m_scissorRect);
 
-    //// Indicate that the back buffer will be used as a render target.
-    //m_commandListSkybox->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+    // Indicate that the back buffer will be used as a render target.
+    m_commandListSkybox->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-    //m_commandListSkybox->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    m_commandListSkybox->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
-    //// Record commands.
-    //m_commandListSkybox->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    //m_commandListSkybox->IASetVertexBuffers(0, 1, &m_modelCube->GetVertexBufferView());
-    //m_commandListSkybox->DrawInstanced(m_modelCube->GetIndicesCount(), 1, 0, 0);
+    // Record commands.
+    m_commandListSkybox->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_commandListSkybox->IASetVertexBuffers(0, 1, &m_modelCube->GetVertexBufferView());
+    m_commandListSkybox->DrawInstanced(m_modelCube->GetIndicesCount(), 1, 0, 0);
 
     // Indicate that the back buffer will now be used to present.
-    //m_commandListSkybox->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+    m_commandListSkybox->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
     //////////////////////
 }
 
@@ -676,6 +713,25 @@ void Renderer::CreateSRV(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap*
 void Renderer::CreateSRV_Texture2D(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, int mipLevels, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc)
 {
     srvDesc.Texture2D.MipLevels = mipLevels;
+    CreateSRV(resource, srvHeap, srvIndex, device, srvDesc);
+}
+
+void Renderer::CreateSRV_Texture2DArray(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, int mipLevels, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc)
+{
+    srvDesc.Texture2DArray.MipLevels = mipLevels;
+    srvDesc.Texture2DArray.ArraySize = 36;
+    CreateSRV(resource, srvHeap, srvIndex, device, srvDesc);
+}
+
+void Renderer::CreateSRV_Texture3D(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, int mipLevels, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc)
+{
+    srvDesc.Texture3D.MipLevels = mipLevels;
+    CreateSRV(resource, srvHeap, srvIndex, device, srvDesc);
+}
+
+void Renderer::CreateSRV_TextureCube(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, int mipLevels, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc)
+{
+    srvDesc.TextureCube.MipLevels = mipLevels;
     CreateSRV(resource, srvHeap, srvIndex, device, srvDesc);
 }
 
