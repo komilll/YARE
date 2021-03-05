@@ -12,9 +12,11 @@
 #include "BufferStructures.h"
 #include "RaytracingShadersHelper.h"
 #include "ModelClass.h"
+#include "DepthStencilManager.h"
+#include "PipelineStateManager.h"
 
 using namespace DirectX;
-typedef std::array<D3D12_INPUT_ELEMENT_DESC, 6> BasicInputLayout;
+//typedef std::array<D3D12_INPUT_ELEMENT_DESC, 6> BasicInputLayout;
 
 // DEFINES
 #define ROOT_SIGNATURE_PIXEL D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS | D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS | D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;// | //D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS;
@@ -36,11 +38,6 @@ public:
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();
 
-
-	CD3DX12_DEPTH_STENCIL_DESC1 CreateDefaultDepthStencilDesc();
-
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC CreateDefaultPSO(BasicInputLayout inputElementDescs, ComPtr<ID3DBlob> vertexShader, ComPtr<ID3DBlob> pixelShader, D3D12_DEPTH_STENCIL_DESC depthStencilDesc, ComPtr<ID3D12RootSignature> rootSignature);
-
 	void CreateRootSignatureRTCP(UINT rootParamCount, UINT samplerCount, CD3DX12_ROOT_PARAMETER rootParameters[], CD3DX12_STATIC_SAMPLER_DESC samplers[], D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags, ComPtr<ID3D12RootSignature>& rootSignature);
 
 	void InitShaderCompiler(D3D12ShaderCompilerInfo& shaderCompiler) const;
@@ -60,7 +57,7 @@ public:
 	void Compile_Shader(_In_ LPCWSTR pFileName, _In_reads_opt_(_Inexpressible_(pDefines->Name != NULL)) CONST D3D_SHADER_MACRO* pDefines, _In_opt_ ID3DInclude* pInclude, _In_ LPCSTR pEntrypoint, _In_ LPCSTR pTarget, _In_ UINT Flags1, _In_ UINT Flags2, _Out_ ID3DBlob** ppCode) const;
 
 private:
-	BasicInputLayout CreateBasicInputLayout();
+	std::array<D3D12_INPUT_ELEMENT_DESC, MAX_INPUT_ELEMENT_DESC> CreateBasicInputLayout();
 
 	// Executing commands/synchronization functions
 	void PopulateCommandList();
@@ -132,6 +129,7 @@ private:
 	ComPtr<ID3D12Resource> m_skyboxTexture;
 
 	// Root signatures/PSO
+	std::shared_ptr<PipelineStateManager> m_psoManager = NULL;
 	ComPtr<ID3D12RootSignature> m_rootSignature = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineState = NULL;
 	ComPtr<ID3D12RootSignature> m_rootSignatureSkybox = NULL;

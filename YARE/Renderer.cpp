@@ -23,12 +23,11 @@ void Renderer::OnInit(HWND hwnd)
     // Create initial view and perspective matrix
     CreateViewAndPerspective();
 
-    // Preparing devices, resources, views to enable rendering
+    // Preparing devices
     LoadPipeline(hwnd);
-    LoadAssets();
 
-    //
-    CreateUploadHeapRTCP(m_device.Get(), m_sceneBuffer);
+    // Preparing resources, views to enable rendering
+    LoadAssets();
 }
 
 // Perform changes in the scene before calling rendering functions
@@ -108,6 +107,9 @@ void Renderer::LoadPipeline(HWND hwnd)
     m_commandQueue = DeviceManager::CreateCommandQueue(m_device, D3D12_COMMAND_LIST_TYPE_DIRECT);
     m_swapChain = DeviceManager::CreateSwapChain(hwnd, m_commandQueue, dxgiFactory, static_cast<int>(m_windowSize.x), static_cast<int>(m_windowSize.y), m_frameCount);
 
+    // Initialize managers
+    m_psoManager = std::shared_ptr<PipelineStateManager>(new PipelineStateManager(m_device));
+
     // This sample does not support fullscreen transitions.
     ThrowIfFailed(dxgiFactory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
 
@@ -131,27 +133,6 @@ void Renderer::LoadPipeline(HWND hwnd)
 
     // Create the depth stencil view.
     {
-        //D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
-        //depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
-        //depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-        //depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
-
-        //D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-        //depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
-        //depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
-        //depthOptimizedClearValue.DepthStencil.Stencil = 0;
-
-        //ThrowIfFailed(m_device->CreateCommittedResource(
-        //    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-        //    D3D12_HEAP_FLAG_NONE,
-        //    &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, static_cast<UINT>(m_windowSize.x), static_cast<UINT>(m_windowSize.y), 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
-        //    D3D12_RESOURCE_STATE_DEPTH_WRITE,
-        //    &depthOptimizedClearValue,
-        //    IID_PPV_ARGS(&m_depthStencil)
-        //));
-
-        //m_device->CreateDepthStencilView(m_depthStencil.Get(), &depthStencilDesc, m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
-
         m_depthStencil = DeviceManager::CreateDepthStencilView(m_device, m_dsvHeap, DXGI_FORMAT_D32_FLOAT, static_cast<int>(m_windowSize.x), static_cast<int>(m_windowSize.y));
     }
 
@@ -222,11 +203,10 @@ void Renderer::LoadAssets()
 
         // Preprare layout, DSV and create PSO
         auto inputElementDescs = CreateBasicInputLayout();
-        CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = CreateDefaultDepthStencilDesc();
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignature);
-        psoDesc.RasterizerState.FrontCounterClockwise = true;
-        psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+        CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = DepthStencilManager::CreateDefaultDepthStencilDesc();
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignature);
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
+        //m_pipelineState = m_psoManager->CreateGraphicsPipelineState(psoDesc);
     }
 
     // Create the pipeline state, which includes compiling and loading shaders. - SKYBOX
@@ -239,13 +219,8 @@ void Renderer::LoadAssets()
 
         // Preprare layout, DSV and create PSO
         auto inputElementDescs = CreateBasicInputLayout();
-        CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = CreateDefaultDepthStencilDesc();
-
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureSkybox);
-        psoDesc.RasterizerState.FrontCounterClockwise = true;
-        psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-        psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-
+        CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = DepthStencilManager::CreateDefaultDepthStencilDesc();
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureSkybox, D3D12_CULL_MODE_NONE, D3D12_COMPARISON_FUNC_LESS);
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineStateSkybox)));
     }
 
@@ -258,10 +233,6 @@ void Renderer::LoadAssets()
     {
         m_modelCube = std::shared_ptr<ModelClass>(new ModelClass("cube.obj", m_device, m_commandList));
         m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass("sphere.obj", m_device, m_commandList));
-        //m_modelBuddha = std::shared_ptr<ModelClass>(new ModelClass("happy-buddha.fbx", m_device, m_commandList));
-        //m_modelPinkRoom = std::shared_ptr<ModelClass>(new ModelClass("SunTemple.fbx", m_device, m_commandList, modelHeap));
-        //m_modelFullscreen = std::shared_ptr<ModelClass>(new ModelClass());
-        //m_modelFullscreen->SetFullScreenRectangleModel(m_device, m_commandList);
     }
 
     // Prepare shader compilator
@@ -269,26 +240,13 @@ void Renderer::LoadAssets()
 
     // Create the constant buffer
     {
-        ThrowIfFailed(m_device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(ConstantBufferStruct)), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_constantBuffer.resource)
-        ));
-
-        CD3DX12_RANGE readRange(0, 0);
-        ThrowIfFailed(m_constantBuffer.resource->Map(0, &readRange, reinterpret_cast<void**>(&m_constantBuffer.ptr)));
-        memcpy(m_constantBuffer.ptr, &m_constantBuffer.value, sizeof(ConstantBufferStruct));
-        m_constantBuffer.resource->Unmap(0, &readRange);
+        CreateUploadHeapRTCP(m_device.Get(), m_constantBuffer);
+        CreateUploadHeapRTCP(m_device.Get(), m_sceneBuffer);
     }
 
     // Create the constant buffer - SKYBOX
     {
-        ThrowIfFailed(m_device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(ConstantBufferStruct)), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_constantBufferSkybox.resource)
-        ));
-
-        CD3DX12_RANGE readRange(0, 0);
-        ThrowIfFailed(m_constantBufferSkybox.resource->Map(0, &readRange, reinterpret_cast<void**>(&m_constantBufferSkybox.ptr)));
-        memcpy(m_constantBufferSkybox.ptr, &m_constantBufferSkybox.value, sizeof(ConstantBufferStruct));
-        m_constantBufferSkybox.resource->Unmap(0, &readRange);
+        CreateUploadHeapRTCP(m_device.Get(), m_constantBufferSkybox);
     }
 
 #if (_WIN32_WINNT >= 0x0A00 /*_WIN32_WINNT_WIN10*/)
@@ -308,14 +266,8 @@ void Renderer::LoadAssets()
     ComPtr<ID3D12Resource> uploadHeap;
     // Create texture for rasterized object
     {
-        //CreateTextureFromFileRTCP(m_dfgTexture, m_commandList, L"DFG.dds", uploadHeap);
         CreateTextureFromFileRTCP(m_pebblesTexture, m_commandList, L"Pebles.png", uploadHeap, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         CreateSRV_Texture2D(m_pebblesTexture, m_srvHeap.Get(), 0, m_device.Get());
-
-        //CreateSRV_Texture2DArray(m_modelPinkRoom->GetTextureResourcesAlbedo(), m_srvHeap.Get(), 0, m_device.Get());
-        //CreateSRV_Texture2D(m_rtLambertTexture, m_srvHeap.Get(), 0, m_device.Get());
-        //CreateSRV_Texture2D(m_rtGGXTexture, m_srvHeap.Get(), 0, m_device.Get());
-        //CreateUploadHeapRTCP(m_device.Get(), m_postprocessBuffer);
     }
 
     ComPtr<ID3D12Resource> skyboxUploadHeap;
@@ -346,7 +298,7 @@ void Renderer::LoadAssets()
     }
 }
 
-BasicInputLayout Renderer::CreateBasicInputLayout()
+std::array<D3D12_INPUT_ELEMENT_DESC, MAX_INPUT_ELEMENT_DESC> Renderer::CreateBasicInputLayout()
 {
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
     {
@@ -358,61 +310,10 @@ BasicInputLayout Renderer::CreateBasicInputLayout()
         { "TEXCOORD", 1, DXGI_FORMAT_R32_UINT, 0, 56, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 
-    BasicInputLayout arr;
+    std::array<D3D12_INPUT_ELEMENT_DESC, MAX_INPUT_ELEMENT_DESC> arr{ {"", 0, (DXGI_FORMAT)0, 0, 0, (D3D12_INPUT_CLASSIFICATION)0, 0} };
     std::move(std::begin(inputElementDescs), std::end(inputElementDescs), arr.begin());
 
     return arr;
-}
-
-CD3DX12_DEPTH_STENCIL_DESC1 Renderer::CreateDefaultDepthStencilDesc()
-{
-    CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc{};
-    depthStencilDesc.DepthBoundsTestEnable = true;
-
-    // Set up the description of the stencil state.
-    depthStencilDesc.DepthEnable = true;
-    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-    depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-
-    depthStencilDesc.StencilEnable = true;
-    depthStencilDesc.StencilReadMask = D3D12_DEPTH_WRITE_MASK_ALL;
-    depthStencilDesc.StencilWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-
-    // Stencil operations if pixel is front-facing.
-    depthStencilDesc.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-    depthStencilDesc.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_INCR;
-    depthStencilDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
-    depthStencilDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-
-    // Stencil operations if pixel is back-facing.
-    depthStencilDesc.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-    depthStencilDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_DECR;
-    depthStencilDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
-    depthStencilDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-
-    return depthStencilDesc;
-}
-
-D3D12_GRAPHICS_PIPELINE_STATE_DESC Renderer::CreateDefaultPSO(BasicInputLayout inputElementDescs, ComPtr<ID3DBlob> vertexShader, ComPtr<ID3DBlob> pixelShader, D3D12_DEPTH_STENCIL_DESC depthStencilDesc, ComPtr<ID3D12RootSignature> rootSignature)
-{
-    // Describe and create the graphics pipeline state object (PSO).
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = { &inputElementDescs[0], static_cast<UINT>(inputElementDescs.size()) };
-    psoDesc.pRootSignature = rootSignature.Get();
-    psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
-    psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState = depthStencilDesc;
-    psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-    psoDesc.SampleDesc.Count = 1;
-    psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-
-    return psoDesc;
 }
 
 void Renderer::CreateRootSignatureRTCP(UINT rootParamCount, UINT samplerCount, CD3DX12_ROOT_PARAMETER rootParameters[], CD3DX12_STATIC_SAMPLER_DESC samplers[], D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags, ComPtr<ID3D12RootSignature>& rootSignature)
@@ -592,12 +493,6 @@ void Renderer::CreateViewAndPerspective()
 
 void Renderer::PopulateCommandList()
 {
-    //m_constantBufferSkybox.Update();
-    //m_sceneBuffer.Update();
-
-    //...
-
-
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset());
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
 

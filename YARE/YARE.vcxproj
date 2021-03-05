@@ -142,6 +142,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DepthStencilManager.cpp" />
     <ClCompile Include="DeviceManager.cpp" />
     <ClCompile Include="External\imgui\imgui.cpp" />
     <ClCompile Include="External\imgui\imgui_demo.cpp" />
@@ -153,12 +154,14 @@
     <ClCompile Include="InputManager.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="ModelClass.cpp" />
+    <ClCompile Include="PipelineStateManager.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="YARE.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BufferStructures.h" />
     <ClInclude Include="CBuffer.h" />
+    <ClInclude Include="DepthStencilManager.h" />
     <ClInclude Include="DeviceManager.h" />
     <ClInclude Include="External\imgui\imconfig.h" />
     <ClInclude Include="External\imgui\imgui.h" />
@@ -174,6 +177,7 @@
     <ClInclude Include="Main.h" />
     <ClInclude Include="ModelClass.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="PipelineStateManager.h" />
     <ClInclude Include="RaytracingShadersHelper.h" />
     <ClInclude Include="Renderer.h" />
   </ItemGroup>
