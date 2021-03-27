@@ -51,8 +51,8 @@ void Renderer::OnUpdate()
 
     // Update raygeneration cbuffer - scene CB
     {
-        XMMATRIX viewProj = XMMatrixMultiply(XMMatrixTranspose(m_constantBuffer.value.view), XMMatrixTranspose(m_constantBuffer.value.projection));
-        m_sceneBuffer.value.projectionToWorld = XMMatrixTranspose(XMMatrixInverse(nullptr, viewProj));
+        XMMATRIX viewProj = XMMatrixMultiply(m_constantBuffer.value.view, m_constantBuffer.value.projection);
+        m_sceneBuffer.value.projectionToWorld = XMMatrixInverse(nullptr, viewProj);
         m_sceneBuffer.value.frameCount++;
         m_sceneBuffer.value.frameCount %= INT_MAX;
         m_sceneBuffer.Update();

@@ -187,5 +187,8 @@
     <FxCompile Include="Shaders\RT_gBuffer.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="Shaders\CS_HiZ.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

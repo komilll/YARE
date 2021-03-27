@@ -28,7 +28,8 @@ PixelInputType main(VertexInputType input)
 	float4 position = float4(input.position, 1.0f);
 	position = mul(position, g_worldMatrix);
 	position = mul(position, g_viewMatrix);
-	output.position = mul(position, g_projMatrix);
+	position = mul(position, g_projMatrix);
+	output.position = position;
 	
 	//output.position = float4(input.position, 1.0f);
 	
