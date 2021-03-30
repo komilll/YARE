@@ -1,7 +1,17 @@
 #ifndef _VERTEX_SHADER_HLSL
 #define _VERTEX_SHADER_HLSL
 
-#include "ALL_CommonBuffers.hlsl"
+//#include "ALL_CommonBuffers.hlsl"
+
+struct VertexInputType
+{
+	float3 position : POSITION;
+	float3 normal : NORMAL;
+	float3 tangent : TANGENT;
+	float3 binormal : BINORMAL;
+	float2 uv : TEXCOORD0;
+	//uint textureID : TEXCOORD1;
+};
 
 struct PixelInputType
 {
@@ -10,7 +20,7 @@ struct PixelInputType
 	float3 tangent : TANGENT;
 	float3 binormal : BINORMAL;
 	float2 uv : TEXCOORD0;
-	uint textureID : TEXCOORD1;
+	//uint textureID : TEXCOORD1;
 };
 
 cbuffer SceneConstantBuffer : register(b0)
@@ -38,7 +48,7 @@ PixelInputType main(VertexInputType input)
 	output.binormal = input.binormal;
 	output.tangent = input.tangent;
 	
-	output.textureID = input.textureID;
+	//output.textureID = 0;//input.textureID;
 	
 	return output;
 }

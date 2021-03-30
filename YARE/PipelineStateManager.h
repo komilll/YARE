@@ -5,7 +5,7 @@
 #include "pch.h"
 #include <array>
 
-#define MAX_INPUT_ELEMENT_DESC 10
+#define MAX_INPUT_ELEMENT_DESC 5
 
 class PipelineStateManager
 {

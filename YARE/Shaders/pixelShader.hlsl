@@ -11,13 +11,17 @@ struct PixelInputType
 	float3 tangent : TANGENT;
 	float3 binormal : BINORMAL;
 	float2 uv : TEXCOORD0;
-	uint textureID : TEXCOORD1;
+	//uint textureID : TEXCOORD1;
 };
 
 float4 main(PixelInputType input) : SV_TARGET
 {
 	//return float4((float) input.textureID / 36.0f, 0, 0, 1);
 	return float4(g_texture.Sample(g_sampler, input.uv).rgb, 1.0f);
+	//float val = input.position.z /input.position.w;
+	//val = abs(val) * 1000;
+	
+	//return float4(val, val, val, 1.0f);
 }
 
 #endif //_PIXEL_SHADER_HLSL

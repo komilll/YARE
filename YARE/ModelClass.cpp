@@ -157,9 +157,9 @@ ModelClass::Mesh ModelClass::ProcessMesh(aiMesh* mesh, const aiScene* scene, uns
 		vertex.position = XMFLOAT3{ mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z };
 
 		// TEXTURE ID
-		vertex.textureAlbedoID = hasTexAlbedo ? albedoTexID : -1;
-		vertex.textureSpecRoughnessID = hasTexSpecRoughness ? specRoughnessTexID : -1;
-		vertex.textureNormalID = hasTexNormal ? normalTexID : -1;
+		//vertex.textureAlbedoID = hasTexAlbedo ? albedoTexID : -1;
+		//vertex.textureSpecRoughnessID = hasTexSpecRoughness ? specRoughnessTexID : -1;
+		//vertex.textureNormalID = hasTexNormal ? normalTexID : -1;
 
 		//NORMAL
 		if (mesh->mNormals) {

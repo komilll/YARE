@@ -9,7 +9,7 @@ struct VertexInputType
 	float3 tangent : TANGENT;
 	float3 binormal : BINORMAL;
 	float2 uv : TEXCOORD0;
-	uint textureID : TEXCOORD1;
+	//uint textureID : TEXCOORD1;
 };
 
 struct Vertex
@@ -19,9 +19,9 @@ struct Vertex
 	float3 tangent;
 	float3 binormal;
 	float2 uv;
-	uint textureAlbedoID;
-	uint textureSpecRoughnessID;
-	uint textureNormalID;
+	//uint textureAlbedoID;
+	//uint textureSpecRoughnessID;
+	//uint textureNormalID;
 };
 
 // Constant Buffers

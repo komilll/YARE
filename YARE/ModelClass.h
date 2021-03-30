@@ -31,9 +31,9 @@ public:
 		XMFLOAT3 tangent;
 		XMFLOAT3 binormal;
 		XMFLOAT2 uv;
-		unsigned int textureAlbedoID;
-		unsigned int textureSpecRoughnessID;
-		unsigned int textureNormalID;
+		//unsigned int textureAlbedoID;
+		//unsigned int textureSpecRoughnessID;
+		//unsigned int textureNormalID;
 	};
 
 	struct Mesh {
