@@ -12,6 +12,8 @@ void Renderer::OnInit(HWND hwnd)
     m_viewport.TopLeftX = 0.0f;
     m_viewport.Width = static_cast<float>(m_windowSize.x);
     m_viewport.Height = static_cast<float>(m_windowSize.y);
+    m_viewport.MinDepth = 0.0f;
+    m_viewport.MaxDepth = 1.0f;
 
     m_scissorRect.left = 0;
     m_scissorRect.top = 0;
@@ -220,7 +222,7 @@ void Renderer::LoadAssets()
         // Preprare layout, DSV and create PSO
         auto inputElementDescs = CreateBasicInputLayout();
         CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = DepthStencilManager::CreateDefaultDepthStencilDesc();
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureSkybox, D3D12_CULL_MODE_NONE, D3D12_COMPARISON_FUNC_LESS);
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureSkybox, D3D12_CULL_MODE_NONE, D3D12_COMPARISON_FUNC_LESS_EQUAL);
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineStateSkybox)));
     }
 
@@ -551,8 +553,8 @@ void Renderer::PopulateCommandList()
 
     // Record commands.
     m_commandListSkybox->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    //m_commandListSkybox->IASetVertexBuffers(0, 1, &m_modelCube->GetVertexBufferView());
-    //m_commandListSkybox->DrawInstanced(m_modelCube->GetIndicesCount(), 1, 0, 0);
+    m_commandListSkybox->IASetVertexBuffers(0, 1, &m_modelCube->GetVertexBufferView());
+    m_commandListSkybox->DrawInstanced(m_modelCube->GetIndicesCount(), 1, 0, 0);
 
     // Indicate that the back buffer will now be used to present.
     m_commandListSkybox->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));

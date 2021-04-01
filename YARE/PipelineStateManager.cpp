@@ -45,7 +45,7 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineStateManager::CreateDefaultPSO(std::a
     psoDesc.RasterizerState.CullMode = cullMode;
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = depthStencilDesc;
-    //psoDesc.DepthStencilState.DepthFunc = depthCompFunc;
+    psoDesc.DepthStencilState.DepthFunc = depthCompFunc;
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
