@@ -188,6 +188,21 @@ void Renderer::LoadAssets()
         CreateRootSignatureRTCP(_countof(rootParameters), _countof(samplers), rootParameters, samplers, rootSignatureFlags, m_rootSignatureSkybox);
     }
 
+    // Create an empty root signature. - HiZ
+    {
+        CD3DX12_ROOT_PARAMETER rootParameters[1] = {};
+        CD3DX12_DESCRIPTOR_RANGE range{ D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0 };
+        rootParameters[0].InitAsDescriptorTable(1, &range);
+        //rootParameters[0].InitAsShaderResourceView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
+
+        D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags = ROOT_SIGNATURE_PIXEL;
+
+        CD3DX12_STATIC_SAMPLER_DESC samplers[1] = {};
+        samplers[0].Init(0, D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT);
+
+        CreateRootSignatureRTCP(_countof(rootParameters), _countof(samplers), rootParameters, samplers, rootSignatureFlags, m_rootSignatureHiZ);
+    }
+
 #if defined(_DEBUG_YARE)
     // Enable better shader debugging with the graphics debugging tools.
     UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
@@ -226,6 +241,21 @@ void Renderer::LoadAssets()
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineStateSkybox)));
     }
 
+    // Create the pipeline state, which includes compiling and loading shaders. - HiZ
+    {
+        // Prepare shaders
+        ComPtr<ID3DBlob> vertexShader;
+        ComPtr<ID3DBlob> pixelShader;
+        Compile_Shader(L"Shaders/VS_Postprocess.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_1", 0, 0, &vertexShader);
+        Compile_Shader(L"Shaders/CS_HiZ.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_1", 0, 0, &pixelShader);
+
+        // Preprare layout, DSV and create PSO
+        auto inputElementDescs = CreateBasicInputLayout();
+        CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = DepthStencilManager::CreateDefaultDepthStencilDesc();
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureHiZ);
+        ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineStateHiZ)));
+    }
+
     // Create the command list.
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocatorsSkybox[m_frameIndex].Get(), m_pipelineStateSkybox.Get(), IID_PPV_ARGS(&m_commandListSkybox)));
@@ -235,6 +265,8 @@ void Renderer::LoadAssets()
     {
         m_modelCube = std::shared_ptr<ModelClass>(new ModelClass("cube.obj", m_device, m_commandList));
         m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass("sphere.obj", m_device, m_commandList));
+        m_modelFullscreen = std::shared_ptr<ModelClass>(new ModelClass()); 
+        m_modelFullscreen->SetFullScreenRectangleModel(m_device, m_commandList);
     }
 
     // Prepare shader compilator
@@ -277,6 +309,13 @@ void Renderer::LoadAssets()
     {
         CreateTextureFromFileRTCP(m_skyboxTexture, m_commandListSkybox, L"Skyboxes/cubemap.dds", skyboxUploadHeap);
         CreateSRV_TextureCube(m_skyboxTexture, m_srvHeap.Get(), 1, m_device.Get());
+    }
+
+    //ComPtr<ID3D12Resource> hiZUploadHeap;
+    // Create HiZ texture
+    {
+        //D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = { DXGI_FORMAT_R24_UNORM_X8_TYPELESS, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
+        //CreateSRV_Texture2D(m_depthStencil, m_srvHeap.Get(), 2, m_device.Get(), 1, srvDesc);
     }
 
     // Close the command list and execute it to begin the initial GPU setup.
@@ -530,6 +569,10 @@ void Renderer::PopulateCommandList()
 
     // Indicate that the back buffer will now be used to present.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+
+    //////////////////////
+    // DRAW DEPTH
+
 
     //////////////////////
     // DRAW SKYBOX

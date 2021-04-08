@@ -117,12 +117,12 @@ private:
 	// Depth stencil view (DSV)
 	ComPtr<ID3D12Resource> m_depthStencil;
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
-	ComPtr<ID3D12Resource> m_depthBuffer = NULL;
 
 	// Models
 	std::shared_ptr<ModelClass> m_modelSphere = NULL;
 	std::shared_ptr<ModelClass> m_modelCube = NULL;
-
+	std::shared_ptr<ModelClass> m_modelFullscreen = NULL;
+	
 	// Textures
 	ComPtr<ID3D12Resource> m_backBuffers[m_frameCount];
 	ComPtr<ID3D12Resource> m_pebblesTexture;
@@ -134,6 +134,8 @@ private:
 	ComPtr<ID3D12PipelineState> m_pipelineState = NULL;
 	ComPtr<ID3D12RootSignature> m_rootSignatureSkybox = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineStateSkybox = NULL;
+	ComPtr<ID3D12RootSignature> m_rootSignatureHiZ = NULL;
+	ComPtr<ID3D12PipelineState> m_pipelineStateHiZ = NULL;
 
 	// Shader compiler
 	D3D12ShaderCompilerInfo m_shaderCompiler{};

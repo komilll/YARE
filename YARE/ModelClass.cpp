@@ -419,31 +419,31 @@ bool ModelClass::CreateRectangle(ComPtr<ID3D12Device2> device, float left, float
 	}
 
 	//First triangle
-	localMesh.vertices[0].position = XMFLOAT3(left, top, 0.0f);  // Top left.	
+	localMesh.vertices[2].position = XMFLOAT3(left, top, 0.0f);  // Top left.	
 	localMesh.vertices[1].position = XMFLOAT3(right, bottom, 0.0f);  // Bottom right.
-	localMesh.vertices[2].position = XMFLOAT3(left, bottom, 0.0f);  // Bottom left.
+	localMesh.vertices[0].position = XMFLOAT3(left, bottom, 0.0f);  // Bottom left.
 	//Second triangle
-	localMesh.vertices[3].position = XMFLOAT3(left, top, 0.0f);  // Top left.
+	localMesh.vertices[5].position = XMFLOAT3(left, top, 0.0f);  // Top left.
 	localMesh.vertices[4].position = XMFLOAT3(right, top, 0.0f);  // Top right.
-	localMesh.vertices[5].position = XMFLOAT3(right, bottom, 0.0f);  // Bottom right.
+	localMesh.vertices[3].position = XMFLOAT3(right, bottom, 0.0f);  // Bottom right.
 
-	localMesh.vertices[0].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
-	localMesh.vertices[1].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
-	localMesh.vertices[2].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
-	localMesh.vertices[3].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
-	localMesh.vertices[4].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
-	localMesh.vertices[5].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
+	//localMesh.vertices[0].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
+	//localMesh.vertices[1].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
+	//localMesh.vertices[2].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
+	//localMesh.vertices[3].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
+	//localMesh.vertices[4].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
+	//localMesh.vertices[5].normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
 
 	//Set UV values
 	{
 		//First triangle	
-		localMesh.vertices[0].uv = XMFLOAT2(0.0, 0.0);  // Top left.	
+		localMesh.vertices[2].uv = XMFLOAT2(0.0, 0.0);  // Top left.	
 		localMesh.vertices[1].uv = XMFLOAT2(1.0, 1.0);  // Bottom right.
-		localMesh.vertices[2].uv = XMFLOAT2(0.0, 1.0);  // Bottom left.
+		localMesh.vertices[0].uv = XMFLOAT2(0.0, 1.0);  // Bottom left.
 		//Second triangle
-		localMesh.vertices[3].uv = XMFLOAT2(0.0, 0.0);  // Top left.
+		localMesh.vertices[5].uv = XMFLOAT2(0.0, 0.0);  // Top left.
 		localMesh.vertices[4].uv = XMFLOAT2(1.0, 0.0);  // Top right.
-		localMesh.vertices[5].uv = XMFLOAT2(1.0, 1.0);  // Bottom right.
+		localMesh.vertices[3].uv = XMFLOAT2(1.0, 1.0);  // Bottom right.
 	}
 
 	m_meshes.clear();

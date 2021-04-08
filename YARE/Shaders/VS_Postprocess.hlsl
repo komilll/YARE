@@ -10,7 +10,7 @@ struct PixelInputType
 	float3 tangent : TANGENT;
 	float3 binormal : BINORMAL;
 	float2 uv : TEXCOORD0;
-	uint textureID : TEXCOORD1;
+	//uint textureID : TEXCOORD1;
 };
 
 PixelInputType main(VertexInputType input)
@@ -24,7 +24,7 @@ PixelInputType main(VertexInputType input)
 	output.binormal = input.binormal;
 	output.tangent = input.tangent;
 	
-	output.textureID = input.textureID;
+	//output.textureID = input.textureID;
 	
 	return output;
 }

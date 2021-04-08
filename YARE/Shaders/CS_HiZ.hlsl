@@ -1,10 +1,27 @@
 #ifndef _CS_HIZ_HLSL_
 #define _CS_HIZ_HLSL_
 
-Texture2D<float> depthBuffer : register(t0);
+Texture2D g_depthBuffer : register(t0);
+SamplerState g_sampler : register(s0);
 
-Texture2D<float2> hiZ		 : register(t0);
-RWTexture2D<float2> hiZout   : register(u0);
+struct PixelInputType
+{
+	float4 position : SV_POSITION;
+	float3 normal : NORMAL;
+	float3 tangent : TANGENT;
+	float3 binormal : BINORMAL;
+	float2 uv : TEXCOORD0;
+	//uint textureID : TEXCOORD1;
+};
+
+float4 main(PixelInputType input) : SV_TARGET
+{
+	//return float4(1, 0, 0, 0);
+	return g_depthBuffer.SampleLevel(g_sampler, input.uv, 0.0f);
+}
+
+//Texture2D<float2> hiZ		 : register(t0);
+//RWTexture2D<float2> hiZout   : register(u0);
 
 //[numthreads(16, 16, 1)]
 //void generateHiZMip0(uint3 index : SV_DispatchThreadID)
