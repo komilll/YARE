@@ -20,6 +20,8 @@ float4 main(PixelInputType input) : SV_TARGET
 	return g_depthBuffer.SampleLevel(g_sampler, input.uv, 0.0f);
 }
 
+//Texture2D<float> depthBuffer : register(t0);
+
 //Texture2D<float2> hiZ		 : register(t0);
 //RWTexture2D<float2> hiZout   : register(u0);
 
@@ -41,6 +43,11 @@ float4 main(PixelInputType input) : SV_TARGET
 
 //	hiZout[index.xy] = float2(depth, depth);
 //}
+
+//#define max3(x, y, z)       ( max(max(x, y), z) )
+//#define min3(x, y, z)       ( min(min(x, y), z) )
+//#define min4(x, y, z, w)    ( min( min3(x, y, z), w) )
+//#define max4(x, y, z, w)    ( max( max3(x, y, z), w) )
 
 //[numthreads(16, 16, 1)]
 //void generateHiZMip(uint3 index : SV_DispatchThreadID)

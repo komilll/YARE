@@ -154,6 +154,7 @@ ComPtr<ID3D12Resource> DeviceManager::CreateDepthStencilView(ComPtr<ID3D12Device
     depthStencilDesc.Format = format;
     depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
     depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
+    depthStencilDesc.Texture2D.MipSlice = 0;
 
     D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
     depthOptimizedClearValue.Format = format;

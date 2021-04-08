@@ -127,6 +127,7 @@ private:
 	ComPtr<ID3D12Resource> m_backBuffers[m_frameCount];
 	ComPtr<ID3D12Resource> m_pebblesTexture;
 	ComPtr<ID3D12Resource> m_skyboxTexture;
+	ComPtr<ID3D12Resource> m_depthBuffer;
 
 	// Root signatures/PSO
 	std::shared_ptr<PipelineStateManager> m_psoManager = NULL;

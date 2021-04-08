@@ -127,7 +127,7 @@ void Renderer::LoadPipeline(HWND hwnd)
         m_rtvDescriptorHeap = DeviceManager::CreateDescriptorHeap(m_device, m_frameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
 
         // Describe and create a shader resource view (SRV) heap for the texture.
-        m_srvHeap = DeviceManager::CreateDescriptorHeap(m_device, 2, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+        m_srvHeap = DeviceManager::CreateDescriptorHeap(m_device, 3, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 
         // Describe and create a depth stencil view (DSV) descriptor heap.
         m_dsvHeap = DeviceManager::CreateDescriptorHeap(m_device, 1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
@@ -252,6 +252,7 @@ void Renderer::LoadAssets()
         // Preprare layout, DSV and create PSO
         auto inputElementDescs = CreateBasicInputLayout();
         CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = DepthStencilManager::CreateDefaultDepthStencilDesc();
+        depthStencilDesc.DepthEnable = false;
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureHiZ);
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineStateHiZ)));
     }
@@ -314,8 +315,10 @@ void Renderer::LoadAssets()
     //ComPtr<ID3D12Resource> hiZUploadHeap;
     // Create HiZ texture
     {
-        //D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = { DXGI_FORMAT_R24_UNORM_X8_TYPELESS, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
-        //CreateSRV_Texture2D(m_depthStencil, m_srvHeap.Get(), 2, m_device.Get(), 1, srvDesc);
+        D3D12_SHADER_RESOURCE_VIEW_DESC desc = { DXGI_FORMAT_R32_FLOAT, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
+        desc.Texture2D.MipLevels = 1;
+        desc.Texture2D.MostDetailedMip = 0;
+        CreateSRV_Texture2D(m_depthStencil, m_srvHeap.Get(), 2, m_device.Get(), 1, desc);
     }
 
     // Close the command list and execute it to begin the initial GPU setup.
@@ -573,6 +576,18 @@ void Renderer::PopulateCommandList()
     //////////////////////
     // DRAW DEPTH
 
+    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+    CD3DX12_GPU_DESCRIPTOR_HANDLE srvHandle2(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 2, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
+
+    m_commandList->SetGraphicsRootSignature(m_rootSignatureHiZ.Get());
+    m_commandList->SetPipelineState(m_pipelineStateHiZ.Get());
+    m_commandList->SetGraphicsRootDescriptorTable(0, srvHandle2);
+
+    m_commandList->IASetVertexBuffers(0, 1, &m_modelFullscreen->GetVertexBufferView());
+    m_commandList->DrawInstanced(m_modelFullscreen->GetIndicesCount(), 1, 0, 0);
+
+    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     //////////////////////
     // DRAW SKYBOX
