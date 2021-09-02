@@ -65,6 +65,7 @@ private:
 	void WaitForPreviousFrame();
 	void MoveToNextFrame();
 
+	static void CreateUAV(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvUavCbvHeap, int resourceIdx, ID3D12Device* device, D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc);
 	static void CreateSRV(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc);
 	static void CreateSRV_Texture2D(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, int mipLevels = 1, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = { DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING });
 	static void CreateSRV_Texture2DArray(ComPtr<ID3D12Resource>& resource, ID3D12DescriptorHeap* srvHeap, int srvIndex, ID3D12Device* device, int mipLevels = 1, D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = { DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_SRV_DIMENSION_TEXTURE2DARRAY, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING });
@@ -73,8 +74,8 @@ private:
 
 private:
 	static constexpr int m_frameCount = 2;
-	static constexpr float Z_NEAR = 5.0f;
-	static constexpr float Z_FAR = 1000.0f;
+	static constexpr float Z_NEAR = 1.0f;
+	static constexpr float Z_FAR = 100.0f;
 	bool FREEZE_CAMERA = false;
 
 	// Camera settings
@@ -128,6 +129,7 @@ private:
 	ComPtr<ID3D12Resource> m_pebblesTexture;
 	ComPtr<ID3D12Resource> m_skyboxTexture;
 	ComPtr<ID3D12Resource> m_depthBuffer;
+	ComPtr<ID3D12Resource> m_hiZBuffer;
 
 	// Root signatures/PSO
 	std::shared_ptr<PipelineStateManager> m_psoManager = NULL;
