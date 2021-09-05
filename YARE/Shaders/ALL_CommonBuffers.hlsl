@@ -70,4 +70,12 @@ struct GiConstantBuffer
 	float padding[52];
 };
 
+struct MatricesConstantBuffer
+{
+	matrix worldMatrix;
+	matrix viewMatrix;
+	matrix projMatrix;
+	matrix paddingMatrix;
+};
+
 #endif //_COMMON_BUFFERS_HLSL_

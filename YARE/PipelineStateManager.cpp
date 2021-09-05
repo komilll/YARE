@@ -26,7 +26,7 @@ bool PipelineStateManager::CreateGraphicsPipelineState(ComPtr<ID3D12PipelineStat
 D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineStateManager::CreateDefaultPSO(std::array<D3D12_INPUT_ELEMENT_DESC, MAX_INPUT_ELEMENT_DESC> inputElementDescs, ComPtr<ID3DBlob> vertexShader, ComPtr<ID3DBlob> pixelShader, D3D12_DEPTH_STENCIL_DESC depthStencilDesc, ComPtr<ID3D12RootSignature> rootSignature, D3D12_CULL_MODE cullMode /* = D3D12_CULL_MODE::D3D12_CULL_MODE_BACK */, D3D12_COMPARISON_FUNC depthCompFunc /* = D3D12_COMPARISON_FUNC_LESS_EQUAL */)
 {
     // Set correct size of input elements array
-    int inputElementSize = inputElementDescs.size();
+    auto inputElementSize = inputElementDescs.size();
     for (const auto& el : inputElementDescs) {
         if (el.SemanticName == NULL)
         {

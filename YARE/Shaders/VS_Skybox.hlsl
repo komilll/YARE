@@ -9,23 +9,17 @@ struct PixelInputType
 	float3 positionWS : TEXCOORD0;
 };
 
-cbuffer MatrixBuffer : register(b0)
-{
-	matrix g_worldMatrix;
-	matrix g_viewMatrix;
-	matrix g_projectionMatrix;
-	matrix g_paddingMatrix;
-};
+ConstantBuffer<MatricesConstantBuffer> g_matricesCB : register(b0);
 
 PixelInputType main(VertexInputType input)
 {
 	PixelInputType output;
 	
-	float4 worldPos = mul(float4(input.position.xyz, 1.0f), g_worldMatrix);
+	float4 worldPos = mul(float4(input.position.xyz, 1.0f), g_matricesCB.worldMatrix);
 	output.positionWS = worldPos.xyz;
 
-	output.position = mul(worldPos, g_viewMatrix);
-	output.position = mul(output.position, g_projectionMatrix).xyww;
+	output.position = mul(worldPos, g_matricesCB.viewMatrix);
+	output.position = mul(output.position, g_matricesCB.projMatrix).xyww;
 
 	return output;
 }

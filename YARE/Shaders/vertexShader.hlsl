@@ -1,17 +1,7 @@
 #ifndef _VERTEX_SHADER_HLSL
 #define _VERTEX_SHADER_HLSL
 
-//#include "ALL_CommonBuffers.hlsl"
-
-struct VertexInputType
-{
-	float3 position : POSITION;
-	float3 normal : NORMAL;
-	float3 tangent : TANGENT;
-	float3 binormal : BINORMAL;
-	float2 uv : TEXCOORD0;
-	//uint textureID : TEXCOORD1;
-};
+#include "ALL_CommonBuffers.hlsl"
 
 struct PixelInputType
 {
@@ -23,22 +13,16 @@ struct PixelInputType
 	//uint textureID : TEXCOORD1;
 };
 
-cbuffer SceneConstantBuffer : register(b0)
-{
-	matrix g_worldMatrix;
-	matrix g_viewMatrix;
-	matrix g_projMatrix;
-	matrix g_paddingMatrix;
-};
+ConstantBuffer<MatricesConstantBuffer> g_matricesCB : register(b0);
 
 PixelInputType main(VertexInputType input)
 {
 	PixelInputType output;
 	
 	float4 position = float4(input.position, 1.0f);
-	position = mul(position, g_worldMatrix);
-	position = mul(position, g_viewMatrix);
-	position = mul(position, g_projMatrix);
+	position = mul(position, g_matricesCB.worldMatrix);
+	position = mul(position, g_matricesCB.viewMatrix);
+	position = mul(position, g_matricesCB.projMatrix);
 	output.position = position;
 	
 	//output.position = float4(input.position, 1.0f);

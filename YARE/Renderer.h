@@ -27,7 +27,8 @@ class Renderer
 	friend class GuiManager;
 
 public:
-	XMFLOAT2 GetWindowSize() const { return m_windowSize; };
+	struct ScreenSize { UINT x, y; };
+	ScreenSize GetWindowSize() const { return m_windowSize; };
 
 	// Main events occuring in renderer - init/loop/destroy
 	void OnInit(HWND hwnd);
@@ -84,7 +85,7 @@ private:
 	XMFLOAT3 m_cameraRotation{ 0,0,0 };
 	XMFLOAT3 m_cameraPositionStoredInFrame{ 0,0,0 };
 
-	XMFLOAT2 m_windowSize = XMFLOAT2{ 1280, 720 };
+	ScreenSize m_windowSize{ 1024, 512 };
 
 	// Frame data
 	UINT64 m_currentCPUFrame = 0;
@@ -138,7 +139,9 @@ private:
 	ComPtr<ID3D12RootSignature> m_rootSignatureSkybox = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineStateSkybox = NULL;
 	ComPtr<ID3D12RootSignature> m_rootSignatureHiZ = NULL;
-	ComPtr<ID3D12PipelineState> m_pipelineStateHiZ = NULL;
+	ComPtr<ID3D12PipelineState> m_pipelineStateHiZMipZero = NULL;
+	ComPtr<ID3D12PipelineState> m_pipelineStateHiZMipOne = NULL;
+	ComPtr<ID3D12PipelineState> m_pipelineStateHiZMipTwo = NULL;
 
 	// Shader compiler
 	D3D12ShaderCompilerInfo m_shaderCompiler{};
@@ -152,6 +155,7 @@ private:
 	CBuffer<ConstantBufferStruct> m_constantBufferSkybox;
 	CBuffer<LightConstantBuffer> m_lightBuffer;
 	CBuffer<PostprocessConstantBuffer> m_postprocessBuffer;
+	CBuffer<HiZConstantBuffer> m_hizConstantBuffer;
 
 	// Synchronization
 	ComPtr<ID3D12Fence> m_fence;
