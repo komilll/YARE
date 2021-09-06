@@ -264,20 +264,12 @@ void Renderer::LoadAssets()
             ThrowIfFailed(m_device->CreatePipelineState(&pipelineStateStreamDesc, IID_PPV_ARGS(&m_pipelineStateHiZMipZero))); 
         }
 
-        // Create PSO for mip 1
-        Compile_Shader(L"Shaders/CS_HiZ.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "generateHiZMip1", "cs_5_1", 0, 0, &computeShader);
+        // Create PSO for others mips
+        Compile_Shader(L"Shaders/CS_HiZ.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "generateHiZMip", "cs_5_1", 0, 0, &computeShader);
         pipelineStateStream.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
         {
             D3D12_PIPELINE_STATE_STREAM_DESC pipelineStateStreamDesc = { sizeof(PipelineStateStream), &pipelineStateStream };
-            ThrowIfFailed(m_device->CreatePipelineState(&pipelineStateStreamDesc, IID_PPV_ARGS(&m_pipelineStateHiZMipOne))); 
-        }
-
-        // Create PSO for mip 2
-        Compile_Shader(L"Shaders/CS_HiZ.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "generateHiZMip2", "cs_5_1", 0, 0, &computeShader);
-        pipelineStateStream.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
-        {
-            D3D12_PIPELINE_STATE_STREAM_DESC pipelineStateStreamDesc = { sizeof(PipelineStateStream), &pipelineStateStream };
-            ThrowIfFailed(m_device->CreatePipelineState(&pipelineStateStreamDesc, IID_PPV_ARGS(&m_pipelineStateHiZMipTwo)));
+            ThrowIfFailed(m_device->CreatePipelineState(&pipelineStateStreamDesc, IID_PPV_ARGS(&m_pipelineStateHiZ))); 
         }
     }
 
@@ -633,6 +625,7 @@ void Renderer::PopulateCommandList()
     {
         CD3DX12_GPU_DESCRIPTOR_HANDLE depthHandle(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 2, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
         CD3DX12_GPU_DESCRIPTOR_HANDLE hiZUAV(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 2, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        CD3DX12_GPU_DESCRIPTOR_HANDLE hiZUAVMip2(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 3, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
 
         m_commandList->SetPipelineState(m_pipelineStateHiZMipZero.Get());
         m_commandList->SetComputeRootSignature(m_rootSignatureHiZ.Get());
@@ -650,13 +643,13 @@ void Renderer::PopulateCommandList()
         }
 
         // Generate additional mips for Hi-Z buffer (in this implementation we use mip 1 and mip 2)
-        m_commandList->SetPipelineState(m_pipelineStateHiZMipOne.Get());
+        m_commandList->SetPipelineState(m_pipelineStateHiZ.Get());
         {
             m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_hiZBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
             m_commandList->Dispatch(m_windowSize.x / 32, m_windowSize.y / 32, 1); // Mip 1
             m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_hiZBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON));
         }
-        m_commandList->SetPipelineState(m_pipelineStateHiZMipTwo.Get());
+        m_commandList->SetComputeRootDescriptorTable(1, hiZUAVMip2);
         {
             m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_hiZBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
             m_commandList->Dispatch(m_windowSize.x / 64, m_windowSize.y / 64, 1); // Mip 2

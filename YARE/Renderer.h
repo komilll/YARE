@@ -140,8 +140,7 @@ private:
 	ComPtr<ID3D12PipelineState> m_pipelineStateSkybox = NULL;
 	ComPtr<ID3D12RootSignature> m_rootSignatureHiZ = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineStateHiZMipZero = NULL;
-	ComPtr<ID3D12PipelineState> m_pipelineStateHiZMipOne = NULL;
-	ComPtr<ID3D12PipelineState> m_pipelineStateHiZMipTwo = NULL;
+	ComPtr<ID3D12PipelineState> m_pipelineStateHiZ = NULL;
 
 	// Shader compiler
 	D3D12ShaderCompilerInfo m_shaderCompiler{};
