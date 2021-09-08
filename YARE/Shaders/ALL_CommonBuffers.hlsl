@@ -78,4 +78,10 @@ struct MatricesConstantBuffer
 	matrix paddingMatrix;
 };
 
+struct MipConstantBuffer
+{
+	int mip;
+	int padding[63];
+};
+
 #endif //_COMMON_BUFFERS_HLSL_

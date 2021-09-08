@@ -89,11 +89,19 @@ typedef struct _postprocessConstantBuffer
 } PostprocessConstantBuffer;
 static_assert((sizeof(PostprocessConstantBuffer) % 256) == 0, "Postprocess Constant Buffer size must be 256-byte aligned");
 
-typedef struct _hiZConstantBuffer
+typedef struct _mipConstantBuffer
 {
 	int currentMip = 0;
 	int padding[63];
-} HiZConstantBuffer;
-static_assert((sizeof(HiZConstantBuffer) % 256) == 0, "Hi-Z Constant Buffer size must be 256-byte aligned");
+} MipConstantBuffer;
+static_assert((sizeof(MipConstantBuffer) % 256) == 0, "Hi-Z Constant Buffer size must be 256-byte aligned");
+
+typedef struct _preIntegrateConstantBuffer
+{
+	float zNear;
+	float zFar;
+	float padding[62];
+} PreIntegrateConstantBuffer;
+static_assert((sizeof(PreIntegrateConstantBuffer) % 256) == 0, "PreIntegrate Constant Buffer size must be 256-byte aligned");
 
 #endif // !_BUFFER_STRUCTURES_H_

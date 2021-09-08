@@ -76,7 +76,7 @@ private:
 private:
 	static constexpr int m_frameCount = 2;
 	static constexpr float Z_NEAR = 1.0f;
-	static constexpr float Z_FAR = 100.0f;
+	static constexpr float Z_FAR = 10.0f;
 	bool FREEZE_CAMERA = false;
 
 	// Camera settings
@@ -131,6 +131,7 @@ private:
 	ComPtr<ID3D12Resource> m_skyboxTexture;
 	ComPtr<ID3D12Resource> m_depthBuffer;
 	ComPtr<ID3D12Resource> m_hiZBuffer;
+	ComPtr<ID3D12Resource> m_visibilityBuffer;
 
 	// Root signatures/PSO
 	std::shared_ptr<PipelineStateManager> m_psoManager = NULL;
@@ -138,9 +139,14 @@ private:
 	ComPtr<ID3D12PipelineState> m_pipelineState = NULL;
 	ComPtr<ID3D12RootSignature> m_rootSignatureSkybox = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineStateSkybox = NULL;
+
 	ComPtr<ID3D12RootSignature> m_rootSignatureHiZ = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineStateHiZMipZero = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineStateHiZ = NULL;
+
+	ComPtr<ID3D12RootSignature> m_rootSignaturePreIntegration = NULL;
+	ComPtr<ID3D12PipelineState> m_pipelineStatePreIntegration = NULL;
+	ComPtr<ID3D12PipelineState> m_pipelineStatePreIntegrationMipZero = NULL;
 
 	// Shader compiler
 	D3D12ShaderCompilerInfo m_shaderCompiler{};
@@ -154,7 +160,10 @@ private:
 	CBuffer<ConstantBufferStruct> m_constantBufferSkybox;
 	CBuffer<LightConstantBuffer> m_lightBuffer;
 	CBuffer<PostprocessConstantBuffer> m_postprocessBuffer;
-	CBuffer<HiZConstantBuffer> m_hizConstantBuffer;
+	CBuffer<MipConstantBuffer> m_mip0ConstantBuffer;
+	CBuffer<MipConstantBuffer> m_mip1ConstantBuffer;
+	CBuffer<MipConstantBuffer> m_mip2ConstantBuffer;
+	CBuffer<PreIntegrateConstantBuffer> m_preintegrateConstantBuffer;
 
 	// Synchronization
 	ComPtr<ID3D12Fence> m_fence;

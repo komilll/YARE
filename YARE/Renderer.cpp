@@ -127,7 +127,7 @@ void Renderer::LoadPipeline(HWND hwnd)
         m_rtvDescriptorHeap = DeviceManager::CreateDescriptorHeap(m_device, m_frameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
 
         // Describe and create a shader resource view (SRV) heap for the texture.
-        m_srvHeap = DeviceManager::CreateDescriptorHeap(m_device, 7, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+        m_srvHeap = DeviceManager::CreateDescriptorHeap(m_device, 15, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 
         // Describe and create a depth stencil view (DSV) descriptor heap.
         m_dsvHeap = DeviceManager::CreateDescriptorHeap(m_device, 1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
@@ -157,7 +157,7 @@ void Renderer::LoadPipeline(HWND hwnd)
 
 void Renderer::LoadAssets()
 {
-    // Create an empty root signature.
+    // Create root signature
     {
         CD3DX12_ROOT_PARAMETER rootParameters[2] = {};
         CD3DX12_DESCRIPTOR_RANGE range{ D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0 };
@@ -172,7 +172,7 @@ void Renderer::LoadAssets()
         CreateRootSignatureRTCP(_countof(rootParameters), _countof(samplers), rootParameters, samplers, rootSignatureFlags, m_rootSignature);
     }
 
-    // Create an empty root signature. - SKYBOX
+    // Create root signature - SKYBOX
     {
         CD3DX12_ROOT_PARAMETER rootParameters[3] = {};
         CD3DX12_DESCRIPTOR_RANGE range{ D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0 };
@@ -188,7 +188,7 @@ void Renderer::LoadAssets()
         CreateRootSignatureRTCP(_countof(rootParameters), _countof(samplers), rootParameters, samplers, rootSignatureFlags, m_rootSignatureSkybox);
     }
 
-    // Create an empty root signature. - HiZ
+    // Create root signature - HiZ
     {
         CD3DX12_ROOT_PARAMETER rootParameters[4] = {};
         rootParameters[0].InitAsDescriptorTable(1, &CD3DX12_DESCRIPTOR_RANGE{ D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0 });
@@ -202,6 +202,23 @@ void Renderer::LoadAssets()
         samplers[0].Init(0, D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT);
 
         CreateRootSignatureRTCP(_countof(rootParameters), _countof(samplers), rootParameters, samplers, rootSignatureFlags, m_rootSignatureHiZ);
+    }
+
+    // Create root signature - pre-integration pass
+    {
+        CD3DX12_ROOT_PARAMETER rootParameters[5] = {};
+        rootParameters[0].InitAsDescriptorTable(1, &CD3DX12_DESCRIPTOR_RANGE{ D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0 });
+        rootParameters[1].InitAsDescriptorTable(1, &CD3DX12_DESCRIPTOR_RANGE{ D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE });
+        rootParameters[2].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[3].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[4].InitAsConstantBufferView(2, 0, D3D12_SHADER_VISIBILITY_ALL);
+
+        D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags = ROOT_SIGNATURE_PIXEL;
+
+        CD3DX12_STATIC_SAMPLER_DESC samplers[1] = {};
+        samplers[0].Init(0, D3D12_FILTER_MIN_MAG_MIP_POINT);
+
+        CreateRootSignatureRTCP(_countof(rootParameters), _countof(samplers), rootParameters, samplers, rootSignatureFlags, m_rootSignaturePreIntegration);
     }
 
 #if defined(_DEBUG_YARE)
@@ -254,8 +271,6 @@ void Renderer::LoadAssets()
             CD3DX12_PIPELINE_STATE_STREAM_CS CS;
         } pipelineStateStream;
 
-//TODO: Currently I'm switching PSO for each mip which is costly
-
         // Create PSO for mip 0
         pipelineStateStream.pRootSignature = m_rootSignatureHiZ.Get();
         pipelineStateStream.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
@@ -270,6 +285,35 @@ void Renderer::LoadAssets()
         {
             D3D12_PIPELINE_STATE_STREAM_DESC pipelineStateStreamDesc = { sizeof(PipelineStateStream), &pipelineStateStream };
             ThrowIfFailed(m_device->CreatePipelineState(&pipelineStateStreamDesc, IID_PPV_ARGS(&m_pipelineStateHiZ))); 
+        }
+    }
+
+    // Create the pipeline state, which includes compiling and loading shaders - precompute visibility
+    {
+        // Prepare shader blob
+        ComPtr<ID3DBlob> computeShader;
+        Compile_Shader(L"Shaders/SSR.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "preIntegrate", "cs_5_1", 0, 0, &computeShader);
+
+        struct PipelineStateStream
+        {
+            CD3DX12_PIPELINE_STATE_STREAM_ROOT_SIGNATURE pRootSignature;
+            CD3DX12_PIPELINE_STATE_STREAM_CS CS;
+        } pipelineStateStream;
+
+        // Create PSO for mip 0
+        pipelineStateStream.pRootSignature = m_rootSignaturePreIntegration.Get();
+        pipelineStateStream.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
+        {
+            D3D12_PIPELINE_STATE_STREAM_DESC pipelineStateStreamDesc = { sizeof(PipelineStateStream), &pipelineStateStream };
+            ThrowIfFailed(m_device->CreatePipelineState(&pipelineStateStreamDesc, IID_PPV_ARGS(&m_pipelineStatePreIntegration)));
+        }
+
+        // Create PSO for others mips
+        Compile_Shader(L"Shaders/SSR.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "preIntegrateMip0", "cs_5_1", 0, 0, &computeShader);
+        pipelineStateStream.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
+        {
+            D3D12_PIPELINE_STATE_STREAM_DESC pipelineStateStreamDesc = { sizeof(PipelineStateStream), &pipelineStateStream };
+            ThrowIfFailed(m_device->CreatePipelineState(&pipelineStateStreamDesc, IID_PPV_ARGS(&m_pipelineStatePreIntegrationMipZero)));
         }
     }
 
@@ -302,7 +346,27 @@ void Renderer::LoadAssets()
 
     // Create other buffers
     {
-        CreateUploadHeapRTCP(m_device.Get(), m_hizConstantBuffer);
+        CreateUploadHeapRTCP(m_device.Get(), m_preintegrateConstantBuffer);
+        m_preintegrateConstantBuffer.value.zNear = Z_NEAR;
+        m_preintegrateConstantBuffer.value.zFar = Z_FAR;
+        for (auto& val : m_preintegrateConstantBuffer.value.padding) {
+            val = 0;
+        }
+        m_preintegrateConstantBuffer.Update();
+
+        CreateUploadHeapRTCP(m_device.Get(), m_mip0ConstantBuffer);
+        m_mip0ConstantBuffer.value.currentMip = 0;
+        m_mip0ConstantBuffer.Update();
+
+        CreateUploadHeapRTCP(m_device.Get(), m_mip1ConstantBuffer);
+        m_mip1ConstantBuffer.value.currentMip = 1;
+        m_mip1ConstantBuffer.Update();
+
+        CreateUploadHeapRTCP(m_device.Get(), m_mip2ConstantBuffer);
+        m_mip2ConstantBuffer.value.currentMip = 2;
+        m_mip2ConstantBuffer.Update();
+
+
     }
 
 #if (_WIN32_WINNT >= 0x0A00 /*_WIN32_WINNT_WIN10*/)
@@ -324,14 +388,14 @@ void Renderer::LoadAssets()
     // Create texture for rasterized object
     {
         CreateTextureFromFileRTCP(m_pebblesTexture, m_commandList, L"Pebles.png", uploadHeap, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        CreateSRV_Texture2D(m_pebblesTexture, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get());
+        CreateSRV_Texture2D(m_pebblesTexture, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get()); // index 0
     }
 
     ComPtr<ID3D12Resource> skyboxUploadHeap;
     // Create skybox texture
     {
         CreateTextureFromFileRTCP(m_skyboxTexture, m_commandListSkybox, L"Skyboxes/cubemap.dds", skyboxUploadHeap);
-        CreateSRV_TextureCube(m_skyboxTexture, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get());
+        CreateSRV_TextureCube(m_skyboxTexture, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get()); // index 1
     }
 
     //ComPtr<ID3D12Resource> hiZUploadHeap;
@@ -340,10 +404,44 @@ void Renderer::LoadAssets()
         D3D12_SHADER_RESOURCE_VIEW_DESC desc = { DXGI_FORMAT_R32_FLOAT, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
         desc.Texture2D.MipLevels = 1;
         desc.Texture2D.MostDetailedMip = 0;
-        CreateSRV_Texture2D(m_depthStencil, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc);
+        CreateSRV_Texture2D(m_depthStencil, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc); // index 2
     }
 
     // Create HiZ texture - UAV
+    {
+        const int mipCount = 3;
+        D3D12_RESOURCE_DESC textureDesc = {};
+        textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32_FLOAT, m_windowSize.x, m_windowSize.y, 1, mipCount);
+        textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        m_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+            D3D12_HEAP_FLAG_NONE,
+            &textureDesc,
+            D3D12_RESOURCE_STATE_COMMON,
+            nullptr,
+            IID_PPV_ARGS(&m_hiZBuffer));
+
+        // Create UAV for mips (0, 1, 2)
+        auto desc = D3D12_UNORDERED_ACCESS_VIEW_DESC{ DXGI_FORMAT_R32G32_FLOAT, D3D12_UAV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
+        desc.Texture2D.PlaneSlice = 0;
+        // indices 3, 4, 5
+        for (int i = 0; i < mipCount; ++i)
+        {
+            desc.Texture2D.MipSlice = i;
+            CreateUAV(m_hiZBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), desc);
+        }
+    }
+
+    // Create Hi-Z buffer SRV
+    {
+        const int mipCount = 3;
+        D3D12_SHADER_RESOURCE_VIEW_DESC desc = { DXGI_FORMAT_R32G32_FLOAT, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
+        desc.Texture2D.MipLevels = mipCount;
+        desc.Texture2D.MostDetailedMip = 0;
+        CreateSRV_Texture2D(m_hiZBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), mipCount, desc); // index 6
+    }
+
+    // Create visibility buffer SRV
     {
         const int mipCount = 3;
         D3D12_RESOURCE_DESC textureDesc = {};
@@ -355,15 +453,26 @@ void Renderer::LoadAssets()
             &textureDesc,
             D3D12_RESOURCE_STATE_COMMON,
             nullptr,
-            IID_PPV_ARGS(&m_hiZBuffer));
+            IID_PPV_ARGS(&m_visibilityBuffer));
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC desc = { DXGI_FORMAT_R32_FLOAT, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
+        desc.Texture2D.MipLevels = mipCount;
+        desc.Texture2D.MostDetailedMip = 0;
+        CreateSRV_Texture2D(m_visibilityBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), mipCount, desc); // index 7
+    }
+
+    // Create visibility buffer UAV
+    {
+        const int mipCount = 3;
 
         // Create UAV for mips (0, 1, 2)
         auto desc = D3D12_UNORDERED_ACCESS_VIEW_DESC{ DXGI_FORMAT_R32_FLOAT, D3D12_UAV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
         desc.Texture2D.PlaneSlice = 0;
+        // indices 8, 9, 10
         for (int i = 0; i < mipCount; ++i)
         {
             desc.Texture2D.MipSlice = i;
-            CreateUAV(m_hiZBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), desc);
+            CreateUAV(m_visibilityBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), desc);
         }
     }
 
@@ -621,7 +730,7 @@ void Renderer::PopulateCommandList()
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     //////////////////////
-    // DRAW DEPTH
+    // Hi-Z buffer generation
     {
         CD3DX12_GPU_DESCRIPTOR_HANDLE depthHandle(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 2, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
         CD3DX12_GPU_DESCRIPTOR_HANDLE hiZUAV(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 2, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
@@ -633,7 +742,6 @@ void Renderer::PopulateCommandList()
         m_commandList->SetComputeRootDescriptorTable(0, depthHandle);
         m_commandList->SetComputeRootDescriptorTable(1, hiZUAV);
         m_commandList->SetComputeRootConstantBufferView(2, m_constantBuffer.resource->GetGPUVirtualAddress());
-        m_commandList->SetComputeRootConstantBufferView(3, m_hizConstantBuffer.resource->GetGPUVirtualAddress());
 
         // Generate Hi-Z mip 0 (transform depth buffer from Compute-Space (CS) to View-Space (VS))
         {
@@ -656,6 +764,52 @@ void Renderer::PopulateCommandList()
             m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_hiZBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON));
         }
     }
+
+    //////////////////////
+    // Pre-integration Hi-Z step
+    {
+        CD3DX12_GPU_DESCRIPTOR_HANDLE hiZSRV(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 5, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferSRV(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 6, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferUAV_mip1(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 7, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferUAV_mip2(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 8, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+
+        //m_commandList->SetPipelineState(m_pipelineStatePreIntegration.Get());
+        m_commandList->SetPipelineState(m_pipelineStatePreIntegrationMipZero.Get());
+
+        m_commandList->SetComputeRootSignature(m_rootSignaturePreIntegration.Get());
+
+        m_commandList->SetComputeRootDescriptorTable(0, hiZSRV);
+        m_commandList->SetComputeRootDescriptorTable(0, visibilityBufferSRV);
+        m_commandList->SetComputeRootDescriptorTable(1, visibilityBufferUAV_mip1);
+        m_commandList->SetComputeRootConstantBufferView(2, m_mip1ConstantBuffer.resource->GetGPUVirtualAddress());
+        m_commandList->SetComputeRootConstantBufferView(3, m_constantBuffer.resource->GetGPUVirtualAddress());
+        m_commandList->SetComputeRootConstantBufferView(4, m_preintegrateConstantBuffer.resource->GetGPUVirtualAddress());
+
+        // Generate Hi-Z mip 0 (transform depth buffer from Compute-Space (CS) to View-Space (VS))
+        {
+            m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_visibilityBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+            m_commandList->Dispatch(m_windowSize.x / 16, m_windowSize.y / 16, 1);
+            m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_visibilityBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON));
+        }
+
+        //CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferUAV_mip2(m_srvHeap->GetGPUDescriptorHandleForHeapStart());
+        //visibilityBufferUAV_mip2.Offset(8, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+
+        // Generate additional mips for Hi-Z buffer (in this implementation we use mip 1 and mip 2)
+        m_commandList->SetPipelineState(m_pipelineStatePreIntegration.Get());
+        m_commandList->SetComputeRootDescriptorTable(1, visibilityBufferUAV_mip2);
+        {
+            m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_hiZBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+            m_commandList->Dispatch(m_windowSize.x / 32, m_windowSize.y / 32, 1); // Mip 1
+            m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_hiZBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON));
+        }
+        //m_commandList->SetComputeRootDescriptorTable(1, hiZUAVMip2);
+        //{
+        //    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_hiZBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+        //    m_commandList->Dispatch(m_windowSize.x / 64, m_windowSize.y / 64, 1); // Mip 2
+        //    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_hiZBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON));
+        //}
+    }    
 
     //////////////////////
     // DRAW SKYBOX
