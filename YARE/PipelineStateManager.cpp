@@ -23,7 +23,7 @@ bool PipelineStateManager::CreateGraphicsPipelineState(ComPtr<ID3D12PipelineStat
     return false;
 }
 
-D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineStateManager::CreateDefaultPSO(std::array<D3D12_INPUT_ELEMENT_DESC, MAX_INPUT_ELEMENT_DESC> inputElementDescs, ComPtr<ID3DBlob> vertexShader, ComPtr<ID3DBlob> pixelShader, D3D12_DEPTH_STENCIL_DESC depthStencilDesc, ComPtr<ID3D12RootSignature> rootSignature, D3D12_CULL_MODE cullMode /* = D3D12_CULL_MODE::D3D12_CULL_MODE_BACK */, D3D12_COMPARISON_FUNC depthCompFunc /* = D3D12_COMPARISON_FUNC_LESS_EQUAL */)
+D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineStateManager::CreateDefaultPSO(std::array<D3D12_INPUT_ELEMENT_DESC, MAX_INPUT_ELEMENT_DESC> inputElementDescs, ComPtr<ID3DBlob> vertexShader, ComPtr<ID3DBlob> pixelShader, D3D12_DEPTH_STENCIL_DESC depthStencilDesc, ComPtr<ID3D12RootSignature> rootSignature, D3D12_CULL_MODE cullMode /* = D3D12_CULL_MODE::D3D12_CULL_MODE_BACK */, D3D12_COMPARISON_FUNC depthCompFunc /* = D3D12_COMPARISON_FUNC_LESS_EQUAL */, std::vector<DXGI_FORMAT> formats /* = { DXGI_FORMAT_R8G8B8A8_UNORM } */ )
 {
     // Set correct size of input elements array
     auto inputElementSize = inputElementDescs.size();
@@ -48,8 +48,10 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineStateManager::CreateDefaultPSO(std::a
     psoDesc.DepthStencilState.DepthFunc = depthCompFunc;
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.NumRenderTargets = formats.size();
+    for (int i = 0; i < psoDesc.NumRenderTargets; ++i) {
+        psoDesc.RTVFormats[i] = formats[i];
+    }
     psoDesc.SampleDesc.Count = 1;
     psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 

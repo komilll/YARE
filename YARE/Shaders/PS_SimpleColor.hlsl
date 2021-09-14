@@ -1,8 +1,7 @@
-#ifndef _PIXEL_SHADER_HLSL
-#define _PIXEL_SHADER_HLSL
+#ifndef _PS_SIMPLECOLOR_HLSL_
+#define _PS_SIMPLECOLOR_HLSL_
 
-Texture2D g_texture : register(t0);
-SamplerState g_sampler : register(s0);
+#include "ALL_CommonBuffers.hlsl"
 
 struct PixelInputType
 {
@@ -14,6 +13,7 @@ struct PixelInputType
 	//uint textureID : TEXCOORD1;
 };
 
+
 struct PS_OUTPUT
 {
 	float4 Color : SV_Target0;
@@ -22,12 +22,10 @@ struct PS_OUTPUT
 
 PS_OUTPUT main(PixelInputType input) : SV_TARGET
 {
-	//return float4(g_texture.Sample(g_sampler, input.uv).rgb, 1.0f);
-	
 	PS_OUTPUT output;
-	output.Color = float4(g_texture.Sample(g_sampler, input.uv).rgb, 1.0f);
-	output.Normal = float4(0, 0, 0, 0);
+	output.Color = float4(0, 0, 0, 1);
+	output.Normal = float4(0, 1, 0, 1);
 	return output;
 }
 
-#endif //_PIXEL_SHADER_HLSL
+#endif // _PS_SIMPLECOLOR_HLSL_

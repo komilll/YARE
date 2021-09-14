@@ -5,6 +5,7 @@
 #include <random>
 #include <chrono>
 #include <array>
+#include <vector>
 
 #include "pch.h"
 #include "DeviceManager.h"
@@ -123,7 +124,7 @@ private:
 	// Models
 	std::shared_ptr<ModelClass> m_modelSphere = NULL;
 	std::shared_ptr<ModelClass> m_modelCube = NULL;
-	std::shared_ptr<ModelClass> m_modelFullscreen = NULL;
+	std::shared_ptr<ModelClass> m_modelPlane = NULL;
 	
 	// Textures
 	ComPtr<ID3D12Resource> m_backBuffers[m_frameCount];
@@ -132,6 +133,7 @@ private:
 	ComPtr<ID3D12Resource> m_depthBuffer;
 	ComPtr<ID3D12Resource> m_hiZBuffer;
 	ComPtr<ID3D12Resource> m_visibilityBuffer;
+	ComPtr<ID3D12Resource> m_normalBuffer;
 
 	// Root signatures/PSO
 	std::shared_ptr<PipelineStateManager> m_psoManager = NULL;
@@ -147,11 +149,14 @@ private:
 	ComPtr<ID3D12RootSignature> m_rootSignaturePreIntegration = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineStatePreIntegration = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineStatePreIntegrationMipZero = NULL;
+	ComPtr<ID3D12PipelineState> m_simpleColorPSO = NULL;
 
 	// Shader compiler
 	D3D12ShaderCompilerInfo m_shaderCompiler{};
 
 	// Constant buffers
+	std::vector<CBuffer<ConstantBufferStruct>> m_modelPositionsOne;
+	std::vector<CBuffer<ConstantBufferStruct>> m_modelPositionsTwo;
 	CBuffer<SceneConstantBuffer> m_sceneBuffer;
 	CBuffer<CameraConstantBuffer> m_cameraBuffer;
 	CBuffer<AoConstantBuffer> m_aoBuffer;

@@ -32,7 +32,9 @@ float linearize(float depthVal)
 	//val = (val + 1.0f) * 0.5f; // [0, 1]
 	//return val;
 	
-	return depthVStoCS(depthVal);
+	float z = depthVStoCS(depthVal);
+	float val = (2.0f * zNear) / (zFar + zNear - z * (zFar - zNear));
+	return val;
 }
 
 #define max3(x, y, z)       ( max(max(x, y), z) )
@@ -43,7 +45,7 @@ float linearize(float depthVal)
 [numthreads(16, 16, 1)]
 void preIntegrateMip0(uint3 index : SV_DispatchThreadID)
 {
-	float2 texcoords = float2((float) index.x / 1024.0f, (float) index.y / 512.0f);
+	float2 texcoords = float2((float) index.x / 512.0f, (float) index.y / 256.0f);
 	
 	int mipCurrent = 1;
 	int mipPrevious = 0;
@@ -66,7 +68,7 @@ void preIntegrateMip0(uint3 index : SV_DispatchThreadID)
 [numthreads(16, 16, 1)]
 void preIntegrate(uint3 index : SV_DispatchThreadID)
 {
-	float2 texcoords = float2((float) index.x / 512.0f, (float) index.y / 256.0f);
+	float2 texcoords = float2((float) index.x / 256.0f, (float) index.y / 128.0f);
 	
 	int mipCurrent = 2;
 	int mipPrevious = 1;
@@ -81,9 +83,9 @@ void preIntegrate(uint3 index : SV_DispatchThreadID)
 	
 	float4 visibility;
 	visibility.x = visibilityBuffer.SampleLevel(pointSampler, texcoords, mipPrevious, int2(0, 0)).x;
-	visibility.y = visibilityBuffer.SampleLevel(pointSampler, texcoords, mipPrevious, int2(1, 0)).y;
-	visibility.z = visibilityBuffer.SampleLevel(pointSampler, texcoords, mipPrevious, int2(0, 1)).z;
-	visibility.w = visibilityBuffer.SampleLevel(pointSampler, texcoords, mipPrevious, int2(1, 1)).w;
+	visibility.y = visibilityBuffer.SampleLevel(pointSampler, texcoords, mipPrevious, int2(1, 0)).x;
+	visibility.z = visibilityBuffer.SampleLevel(pointSampler, texcoords, mipPrevious, int2(0, 1)).x;
+	visibility.w = visibilityBuffer.SampleLevel(pointSampler, texcoords, mipPrevious, int2(1, 1)).x;
 	
 	float4 integration = fineZ.xyzw / maxZ * visibility.xyzw;
 	float coarseIntegration = dot(0.25f, integration.xyzw);

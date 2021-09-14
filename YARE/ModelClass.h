@@ -50,6 +50,9 @@ public:
 	void LoadModel(std::string path, ComPtr<ID3D12Device2> device, ComPtr<ID3D12GraphicsCommandList4> commandList, ComPtr<ID3D12Resource>& uploadHeap, DXGI_FORMAT indexFormat = DXGI_FORMAT_R32_UINT);
 	void ProcessScene(std::string path, ComPtr<ID3D12Device2> device, ComPtr<ID3D12GraphicsCommandList4> commandList);
 
+	// Internal functions - creating shapes
+	bool CreateRectangle(ComPtr<ID3D12Device2> device, float left, float right, float top, float bottom);
+
 	// Get meshes
 	Mesh GetMesh(int index) const { return m_meshes.at(index); };
 	std::vector<Mesh> GetMeshes() const { return m_meshes; };
@@ -77,9 +80,6 @@ private:
 	std::vector<Texture> LoadMaterialTextures(ComPtr<ID3D12Resource>& resource, std::vector<Texture>& textures, aiMaterial* mat, std::string texType, aiTextureType type, std::string typeName, const aiScene* scene, ComPtr<ID3D12Device2> device, ComPtr<ID3D12GraphicsCommandList4> commandList, int index, bool forceDDS = false);
 	int GetTextureIndex(aiString* str);
 	std::pair<ComPtr<ID3D12Resource>, D3D12_SUBRESOURCE_DATA> GetTextureFromModel(ComPtr<ID3D12Resource>& resource, const aiScene* scene, std::string filename, ComPtr<ID3D12Device2> device, ComPtr<ID3D12GraphicsCommandList4> commandList, int index, bool forceDDS = false);
-
-	// Internal functions - creating shapes
-	bool CreateRectangle(ComPtr<ID3D12Device2> device, float left, float right, float top, float bottom);
 
 	// Modifying vertex/index buffer, stored in class
 	bool PrepareBuffers(ComPtr<ID3D12Device2> device, DXGI_FORMAT indexFormat);

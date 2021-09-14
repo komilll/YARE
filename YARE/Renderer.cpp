@@ -124,7 +124,7 @@ void Renderer::LoadPipeline(HWND hwnd)
     // Create descriptor heaps.
     {
         // Describe and create a render target view (RTV) descriptor heap.
-        m_rtvDescriptorHeap = DeviceManager::CreateDescriptorHeap(m_device, m_frameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
+        m_rtvDescriptorHeap = DeviceManager::CreateDescriptorHeap(m_device, m_frameCount + 1, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
 
         // Describe and create a shader resource view (SRV) heap for the texture.
         m_srvHeap = DeviceManager::CreateDescriptorHeap(m_device, 15, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
@@ -239,7 +239,8 @@ void Renderer::LoadAssets()
         // Preprare layout, DSV and create PSO
         auto inputElementDescs = CreateBasicInputLayout();
         CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = DepthStencilManager::CreateDefaultDepthStencilDesc();
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignature);
+        std::vector<DXGI_FORMAT> formats{ DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R16G16B16A16_FLOAT };
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignature, D3D12_CULL_MODE_BACK, D3D12_COMPARISON_FUNC_LESS_EQUAL, formats );
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
         //m_pipelineState = m_psoManager->CreateGraphicsPipelineState(psoDesc);
     }
@@ -317,6 +318,22 @@ void Renderer::LoadAssets()
         }
     }
 
+    // Create simple color PSO - used only for floor
+    {
+        // Prepare shaders
+        ComPtr<ID3DBlob> vertexShader;
+        ComPtr<ID3DBlob> pixelShader;
+        Compile_Shader(L"Shaders/vertexShader.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_1", 0, 0, &vertexShader);
+        Compile_Shader(L"Shaders/PS_SimpleColor.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_1", 0, 0, &pixelShader);
+
+        // Preprare layout, DSV and create PSO
+        auto inputElementDescs = CreateBasicInputLayout();
+        CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = DepthStencilManager::CreateDefaultDepthStencilDesc();
+        std::vector<DXGI_FORMAT> formats{ DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R16G16B16A16_FLOAT };
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignature, D3D12_CULL_MODE_BACK, D3D12_COMPARISON_FUNC_LESS_EQUAL, formats);
+        ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_simpleColorPSO)));
+    }
+
     // Create the command list.
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocatorsSkybox[m_frameIndex].Get(), m_pipelineStateSkybox.Get(), IID_PPV_ARGS(&m_commandListSkybox)));
@@ -326,8 +343,8 @@ void Renderer::LoadAssets()
     {
         m_modelCube = std::shared_ptr<ModelClass>(new ModelClass("cube.obj", m_device, m_commandList));
         m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass("suzanne.obj", m_device, m_commandList));
-        m_modelFullscreen = std::shared_ptr<ModelClass>(new ModelClass()); 
-        m_modelFullscreen->SetFullScreenRectangleModel(m_device, m_commandList);
+        m_modelPlane = std::shared_ptr<ModelClass>(new ModelClass());
+        m_modelPlane->SetFullScreenRectangleModel(m_device, m_commandList);
     }
 
     // Prepare shader compilator
@@ -382,6 +399,28 @@ void Renderer::LoadAssets()
     }
     // error
 #endif
+
+    {
+        D3D12_RESOURCE_DESC textureDesc = {};
+        textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R16G16B16A16_FLOAT, m_windowSize.x, m_windowSize.y);
+        textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        m_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+            D3D12_HEAP_FLAG_NONE,
+            &textureDesc,
+            D3D12_RESOURCE_STATE_PRESENT,
+            nullptr,
+            IID_PPV_ARGS(&m_normalBuffer));
+
+        // Create normal buffer RTV
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 2, m_rtvDescriptorSize);
+        D3D12_RENDER_TARGET_VIEW_DESC normalBufferDesc{};
+        normalBufferDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        normalBufferDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        normalBufferDesc.Texture2D.MipSlice = 0;
+        normalBufferDesc.Texture2D.PlaneSlice = 0;
+        m_device->CreateRenderTargetView(m_normalBuffer.Get(), &normalBufferDesc, rtvHandle);
+    }
 
     ComPtr<ID3D12Resource> uploadHeap;
     int currentSrvHeapIdx = 0;
@@ -713,21 +752,59 @@ void Renderer::PopulateCommandList()
 
     // Indicate that the back buffer will be used as a render target.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle[2];
+    rtvHandle[0] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+    rtvHandle[1] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 2, m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
-    m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    m_commandList->OMSetRenderTargets(2, rtvHandle, FALSE, &dsvHandle);
 
     // Record commands.
     const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-    m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    const float clearColorNormal[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    m_commandList->ClearRenderTargetView(rtvHandle[0], clearColor, 0, nullptr);
+    m_commandList->ClearRenderTargetView(rtvHandle[1], clearColorNormal, 0, nullptr);
     m_commandList->ClearDepthStencilView(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_commandList->IASetVertexBuffers(0, 1, &m_modelSphere->GetVertexBufferView());
     m_commandList->DrawInstanced(m_modelSphere->GetIndicesCount(), 1, 0, 0);
 
+    {
+        // Clear CB
+        CBuffer<ConstantBufferStruct>* ConstantBufferCB;
+        if (m_frameIndex == 0)
+        {
+            m_modelPositionsOne.erase(m_modelPositionsOne.begin(), m_modelPositionsOne.end());
+            m_modelPositionsOne.push_back({});
+            ConstantBufferCB = &m_modelPositionsOne[m_modelPositionsOne.size() - 1];
+        }
+        else
+        {
+            m_modelPositionsTwo.erase(m_modelPositionsTwo.begin(), m_modelPositionsTwo.end());
+            m_modelPositionsTwo.push_back({});
+            ConstantBufferCB = &m_modelPositionsTwo[m_modelPositionsTwo.size() - 1];
+        }
+
+        CreateUploadHeapRTCP(m_device.Get(), *ConstantBufferCB);
+        ConstantBufferCB->value.world = XMMatrixMultiply(XMMatrixIdentity(), XMMatrixScaling(5.0f, 5.0f, 5.0f));
+        ConstantBufferCB->value.world = XMMatrixMultiply(ConstantBufferCB->value.world, XMMatrixRotationX(XMConvertToRadians(90.0f)));
+        ConstantBufferCB->value.world = XMMatrixMultiply(ConstantBufferCB->value.world, XMMatrixTranslation(0.0f, -1.0f, 0.0f));
+        ConstantBufferCB->value.world = XMMatrixTranspose(ConstantBufferCB->value.world);
+        ConstantBufferCB->value.view = m_constantBuffer.value.view;
+        ConstantBufferCB->value.projection = m_constantBuffer.value.projection;
+        ConstantBufferCB->Update();
+
+        m_commandList->SetGraphicsRootConstantBufferView(1, ConstantBufferCB->resource->GetGPUVirtualAddress());
+    }
+    m_commandList->SetPipelineState(m_simpleColorPSO.Get());
+
+    m_commandList->IASetVertexBuffers(0, 1, &m_modelPlane->GetVertexBufferView());
+    m_commandList->DrawInstanced(m_modelPlane->GetIndicesCount(), 1, 0, 0);
+
     // Indicate that the back buffer will now be used to present.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     //////////////////////
     // Hi-Z buffer generation
@@ -770,8 +847,9 @@ void Renderer::PopulateCommandList()
     {
         CD3DX12_GPU_DESCRIPTOR_HANDLE hiZSRV(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 5, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
         CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferSRV(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 6, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-        CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferUAV_mip1(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 7, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-        CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferUAV_mip2(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 8, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferUAV_mip0(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 7, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferUAV_mip1(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 8, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        CD3DX12_GPU_DESCRIPTOR_HANDLE visibilityBufferUAV_mip2(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 9, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
 
         //m_commandList->SetPipelineState(m_pipelineStatePreIntegration.Get());
         m_commandList->SetPipelineState(m_pipelineStatePreIntegrationMipZero.Get());
@@ -829,7 +907,7 @@ void Renderer::PopulateCommandList()
     // Indicate that the back buffer will be used as a render target.
     m_commandListSkybox->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-    m_commandListSkybox->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    m_commandListSkybox->OMSetRenderTargets(1, &rtvHandle[0], FALSE, &dsvHandle);
 
     // Record commands.
     m_commandListSkybox->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
