@@ -125,6 +125,7 @@ private:
 	std::shared_ptr<ModelClass> m_modelSphere = NULL;
 	std::shared_ptr<ModelClass> m_modelCube = NULL;
 	std::shared_ptr<ModelClass> m_modelPlane = NULL;
+	std::shared_ptr<ModelClass> m_fullscreenModel = NULL;
 	
 	// Textures
 	ComPtr<ID3D12Resource> m_backBuffers[m_frameCount];
@@ -134,6 +135,7 @@ private:
 	ComPtr<ID3D12Resource> m_hiZBuffer;
 	ComPtr<ID3D12Resource> m_visibilityBuffer;
 	ComPtr<ID3D12Resource> m_normalBuffer;
+	ComPtr<ID3D12Resource> m_ssrBuffer;
 
 	// Root signatures/PSO
 	std::shared_ptr<PipelineStateManager> m_psoManager = NULL;
@@ -150,6 +152,9 @@ private:
 	ComPtr<ID3D12PipelineState> m_pipelineStatePreIntegration = NULL;
 	ComPtr<ID3D12PipelineState> m_pipelineStatePreIntegrationMipZero = NULL;
 	ComPtr<ID3D12PipelineState> m_simpleColorPSO = NULL;
+
+	ComPtr<ID3D12RootSignature> m_rootSignatureSSR = NULL;
+	ComPtr<ID3D12PipelineState> m_ssrPSO = NULL;
 
 	// Shader compiler
 	D3D12ShaderCompilerInfo m_shaderCompiler{};

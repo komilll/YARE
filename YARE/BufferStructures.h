@@ -11,7 +11,7 @@ typedef struct _constantBufferStruct {
 	XMMATRIX view;
 	XMMATRIX projection;
 
-	XMMATRIX paddingMatrix;
+	XMMATRIX invProjMatrix;
 } ConstantBufferStruct;
 static_assert((sizeof(ConstantBufferStruct) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 

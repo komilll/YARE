@@ -20,7 +20,7 @@ void Renderer::OnInit(HWND hwnd)
     m_scissorRect.right = static_cast<LONG>(m_windowSize.x);
     m_scissorRect.bottom = static_cast<LONG>(m_windowSize.y);
 
-    m_cameraPosition = XMFLOAT3{ 0, 0, -4.0f };
+    m_cameraPosition = XMFLOAT3{ 0, 0, -6.0f };
 
     // Create initial view and perspective matrix
     CreateViewAndPerspective();
@@ -124,7 +124,7 @@ void Renderer::LoadPipeline(HWND hwnd)
     // Create descriptor heaps.
     {
         // Describe and create a render target view (RTV) descriptor heap.
-        m_rtvDescriptorHeap = DeviceManager::CreateDescriptorHeap(m_device, m_frameCount + 1, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
+        m_rtvDescriptorHeap = DeviceManager::CreateDescriptorHeap(m_device, m_frameCount + 2, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
 
         // Describe and create a shader resource view (SRV) heap for the texture.
         m_srvHeap = DeviceManager::CreateDescriptorHeap(m_device, 15, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
@@ -219,6 +219,22 @@ void Renderer::LoadAssets()
         samplers[0].Init(0, D3D12_FILTER_MIN_MAG_MIP_POINT);
 
         CreateRootSignatureRTCP(_countof(rootParameters), _countof(samplers), rootParameters, samplers, rootSignatureFlags, m_rootSignaturePreIntegration);
+    }
+
+    // Create root signature - SSR
+    {
+        CD3DX12_ROOT_PARAMETER rootParameters[5] = {};
+        rootParameters[0].InitAsDescriptorTable(1, &CD3DX12_DESCRIPTOR_RANGE{ D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0 });
+        rootParameters[1].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[2].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[3].InitAsConstantBufferView(2, 0, D3D12_SHADER_VISIBILITY_ALL);
+
+        D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags = ROOT_SIGNATURE_PIXEL;
+
+        CD3DX12_STATIC_SAMPLER_DESC samplers[1] = {};
+        samplers[0].Init(0, D3D12_FILTER_MIN_MAG_MIP_POINT);
+
+        CreateRootSignatureRTCP(_countof(rootParameters), _countof(samplers), rootParameters, samplers, rootSignatureFlags, m_rootSignatureSSR);
     }
 
 #if defined(_DEBUG_YARE)
@@ -334,6 +350,21 @@ void Renderer::LoadAssets()
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_simpleColorPSO)));
     }
 
+    // Create SSR PSO
+    {
+        // Prepare shaders
+        ComPtr<ID3DBlob> vertexShader;
+        ComPtr<ID3DBlob> pixelShader;
+        Compile_Shader(L"Shaders/VS_Postprocess.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_1", 0, 0, &vertexShader);
+        Compile_Shader(L"Shaders/SSR.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "SSR", "ps_5_1", 0, 0, &pixelShader);
+
+        // Preprare layout, DSV and create PSO
+        auto inputElementDescs = CreateBasicInputLayout();
+        CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = DepthStencilManager::CreateDefaultDepthStencilDesc();
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureSSR, D3D12_CULL_MODE_BACK, D3D12_COMPARISON_FUNC_LESS_EQUAL);
+        ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_ssrPSO)));
+    }
+
     // Create the command list.
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocatorsSkybox[m_frameIndex].Get(), m_pipelineStateSkybox.Get(), IID_PPV_ARGS(&m_commandListSkybox)));
@@ -345,6 +376,8 @@ void Renderer::LoadAssets()
         m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass("suzanne.obj", m_device, m_commandList));
         m_modelPlane = std::shared_ptr<ModelClass>(new ModelClass());
         m_modelPlane->SetFullScreenRectangleModel(m_device, m_commandList);
+        m_fullscreenModel = std::shared_ptr<ModelClass>(new ModelClass());
+        m_fullscreenModel->SetFullScreenRectangleModel(m_device, m_commandList);        
     }
 
     // Prepare shader compilator
@@ -399,6 +432,28 @@ void Renderer::LoadAssets()
     }
     // error
 #endif
+
+    {
+        D3D12_RESOURCE_DESC textureDesc = {};
+        textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, m_windowSize.x, m_windowSize.y);
+        textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        m_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+            D3D12_HEAP_FLAG_NONE,
+            &textureDesc,
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            nullptr,
+            IID_PPV_ARGS(&m_ssrBuffer));
+
+        // Create normal buffer RTV
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 3, m_rtvDescriptorSize);
+        D3D12_RENDER_TARGET_VIEW_DESC normalBufferDesc{};
+        normalBufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        normalBufferDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        normalBufferDesc.Texture2D.MipSlice = 0;
+        normalBufferDesc.Texture2D.PlaneSlice = 0;
+        m_device->CreateRenderTargetView(m_ssrBuffer.Get(), &normalBufferDesc, rtvHandle);
+    }
 
     {
         D3D12_RESOURCE_DESC textureDesc = {};
@@ -513,6 +568,20 @@ void Renderer::LoadAssets()
             desc.Texture2D.MipSlice = i;
             CreateUAV(m_visibilityBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), desc);
         }
+    }
+
+    // Create SRVs for SSR shader
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC desc = { DXGI_FORMAT_R32G32_FLOAT, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
+        desc.Texture2D.MipLevels = 0;
+        desc.Texture2D.MostDetailedMip = 0;
+        CreateSRV_Texture2D(m_hiZBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc); // index 11
+
+        desc = { DXGI_FORMAT_R32_FLOAT, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
+        CreateSRV_Texture2D(m_visibilityBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc); // index 7
+
+        desc = { DXGI_FORMAT_R16G16B16A16_FLOAT, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
+        CreateSRV_Texture2D(m_normalBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc); // index 13
     }
 
     // Close the command list and execute it to begin the initial GPU setup.
@@ -727,6 +796,7 @@ void Renderer::CreateViewAndPerspective()
     constexpr float FOV = 3.14f / 4.0f;
     float aspectRatio = static_cast<float>(m_windowSize.x) / static_cast<float>(m_windowSize.y);
     m_constantBuffer.value.projection = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(FOV, aspectRatio, Z_NEAR, Z_FAR));
+    m_constantBuffer.value.invProjMatrix = DirectX::XMMatrixInverse(nullptr, m_constantBuffer.value.projection);
 }
 
 void Renderer::PopulateCommandList()
@@ -757,6 +827,7 @@ void Renderer::PopulateCommandList()
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle[2];
     rtvHandle[0] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     rtvHandle[1] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 2, m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE ssrHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 3, m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
     m_commandList->OMSetRenderTargets(2, rtvHandle, FALSE, &dsvHandle);
 
@@ -765,6 +836,7 @@ void Renderer::PopulateCommandList()
     const float clearColorNormal[] = { 0.0f, 0.0f, 0.0f, 0.0f };
     m_commandList->ClearRenderTargetView(rtvHandle[0], clearColor, 0, nullptr);
     m_commandList->ClearRenderTargetView(rtvHandle[1], clearColorNormal, 0, nullptr);
+    m_commandList->ClearRenderTargetView(ssrHandle, clearColorNormal, 0, nullptr);
     m_commandList->ClearDepthStencilView(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_commandList->IASetVertexBuffers(0, 1, &m_modelSphere->GetVertexBufferView());
@@ -793,6 +865,7 @@ void Renderer::PopulateCommandList()
         ConstantBufferCB->value.world = XMMatrixTranspose(ConstantBufferCB->value.world);
         ConstantBufferCB->value.view = m_constantBuffer.value.view;
         ConstantBufferCB->value.projection = m_constantBuffer.value.projection;
+        ConstantBufferCB->value.invProjMatrix = m_constantBuffer.value.invProjMatrix;
         ConstantBufferCB->Update();
 
         m_commandList->SetGraphicsRootConstantBufferView(1, ConstantBufferCB->resource->GetGPUVirtualAddress());
@@ -887,7 +960,29 @@ void Renderer::PopulateCommandList()
         //    m_commandList->Dispatch(m_windowSize.x / 64, m_windowSize.y / 64, 1); // Mip 2
         //    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_hiZBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON));
         //}
-    }    
+    }
+    
+    //m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_ssrBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+    {
+        CD3DX12_GPU_DESCRIPTOR_HANDLE ssrSRVs(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), 11, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+
+        m_commandList->SetGraphicsRootSignature(m_rootSignatureSSR.Get());
+        m_commandList->SetPipelineState(m_ssrPSO.Get());
+
+        m_commandList->SetGraphicsRootDescriptorTable(0, ssrSRVs);
+        m_commandList->SetGraphicsRootConstantBufferView(2, m_constantBuffer.resource->GetGPUVirtualAddress());
+
+        m_commandList->OMSetRenderTargets(1, &ssrHandle, FALSE, &dsvHandle);
+        m_commandList->IASetVertexBuffers(0, 1, &m_fullscreenModel->GetVertexBufferView());
+        m_commandList->DrawInstanced(m_fullscreenModel->GetIndicesCount(), 1, 0, 0);
+    }
+
+    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PRESENT));
+
+    //m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_ssrBuffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     //////////////////////
     // DRAW SKYBOX

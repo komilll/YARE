@@ -3,12 +3,11 @@
 
 #include "ALL_CommonBuffers.hlsl"
 
-
-
 SamplerState pointSampler : register(s0);
 
 Texture2D hiZBuffer : register(t0);
 Texture2D visibilityBuffer : register(t1);
+Texture2D normalBuffer : register(t2);
 
 RWTexture2D<float> visibilityOut : register(u0);
 
@@ -91,6 +90,53 @@ void preIntegrate(uint3 index : SV_DispatchThreadID)
 	float coarseIntegration = dot(0.25f, integration.xyzw);
 	
 	visibilityOut[index.xy] = coarseIntegration;
+}
+
+float3 hiZTrace(float3 p, float3 v)
+{
+	return float3(1, 1, 1);
+}
+
+struct PixelInputType
+{
+	float4 position : SV_POSITION;
+	float3 normal : NORMAL;
+	float3 tangent : TANGENT;
+	float3 binormal : BINORMAL;
+	float2 uv : TEXCOORD0;
+	//uint textureID : TEXCOORD1;
+};
+
+float4 SSR(PixelInputType input) : SV_TARGET
+{
+	//return float4(input.uv, 0.0f, 1.0f);
+	//return float4(1, 0, 0, 1);
+	int3 loadIndices = int3(input.uv, 0);
+	float depth = depthVStoCS(hiZBuffer.Sample(pointSampler, input.uv).r);
+	float3 positionSS = float3(input.uv, depth);
+	
+	float3 viewRay = normalize( mul( float4(positionSS, 1.0f), g_matricesCB.invProjMatrix ) );
+	float3 positionVS = viewRay * linearize(depth);
+	
+	float3 toPositionVS = normalize(positionVS);
+	
+	float3 normalVS = normalBuffer.Load(loadIndices).rgb;
+	return float4(depth, depth, depth, 1.0f);
+	
+	if (dot(normalVS, float3(1.0f, 1.0f, 1.0f)) == 0.0f)
+	{
+		//return float4(0.0f, 0.0f, 0.0f, 0.0f);
+	}
+	
+	float3 reflectVS = reflect(toPositionVS, normalVS);
+	float4 positionPrimeSS4 = mul(float4(positionVS + reflectVS, 1.0f), g_matricesCB.projMatrix);
+	float3 positionPrimeSS = (positionPrimeSS4.xyz / positionPrimeSS4.w);
+	positionPrimeSS.x = positionPrimeSS.x * 0.5f + 0.5f;
+	positionPrimeSS.y = positionPrimeSS.y * -0.5f + 0.5f;
+	
+	float3 reflectSS = positionPrimeSS - positionSS;
+	
+	//return float4(reflectSS.xyz, 1.0f);
 }
 
 #endif //_SSR_HLSL
