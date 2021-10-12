@@ -20,7 +20,8 @@ void Renderer::OnInit(HWND hwnd)
     m_scissorRect.right = static_cast<LONG>(m_windowSize.x);
     m_scissorRect.bottom = static_cast<LONG>(m_windowSize.y);
 
-    m_cameraPosition = XMFLOAT3{ 0, 0, -6.0f };
+    m_cameraPosition = XMFLOAT3{ 0, 2.0f, -6.0f };
+    m_cameraRotation = XMFLOAT3{ 25.0f, 0.0f, 0.0f };
 
     // Create initial view and perspective matrix
     CreateViewAndPerspective();
@@ -124,7 +125,7 @@ void Renderer::LoadPipeline(HWND hwnd)
     // Create descriptor heaps.
     {
         // Describe and create a render target view (RTV) descriptor heap.
-        m_rtvDescriptorHeap = DeviceManager::CreateDescriptorHeap(m_device, m_frameCount + 2, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
+        m_rtvDescriptorHeap = DeviceManager::CreateDescriptorHeap(m_device, m_frameCount + 3, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
 
         // Describe and create a shader resource view (SRV) heap for the texture.
         m_srvHeap = DeviceManager::CreateDescriptorHeap(m_device, 15, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
@@ -224,10 +225,11 @@ void Renderer::LoadAssets()
     // Create root signature - SSR
     {
         CD3DX12_ROOT_PARAMETER rootParameters[5] = {};
-        rootParameters[0].InitAsDescriptorTable(1, &CD3DX12_DESCRIPTOR_RANGE{ D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0 });
+        rootParameters[0].InitAsDescriptorTable(1, &CD3DX12_DESCRIPTOR_RANGE{ D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0 });
         rootParameters[1].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[2].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[3].InitAsConstantBufferView(2, 0, D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[4].InitAsConstantBufferView(3, 0, D3D12_SHADER_VISIBILITY_ALL);
 
         D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags = ROOT_SIGNATURE_PIXEL;
 
@@ -361,7 +363,8 @@ void Renderer::LoadAssets()
         // Preprare layout, DSV and create PSO
         auto inputElementDescs = CreateBasicInputLayout();
         CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = DepthStencilManager::CreateDefaultDepthStencilDesc();
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureSSR, D3D12_CULL_MODE_BACK, D3D12_COMPARISON_FUNC_LESS_EQUAL);
+        std::vector<DXGI_FORMAT> formats{ DXGI_FORMAT_R16G16B16A16_FLOAT };
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = PipelineStateManager::CreateDefaultPSO(inputElementDescs, vertexShader, pixelShader, depthStencilDesc, m_rootSignatureSSR, D3D12_CULL_MODE_BACK, D3D12_COMPARISON_FUNC_LESS_EQUAL, formats);
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_ssrPSO)));
     }
 
@@ -373,7 +376,9 @@ void Renderer::LoadAssets()
     // Create the vertex buffer.
     {
         m_modelCube = std::shared_ptr<ModelClass>(new ModelClass("cube.obj", m_device, m_commandList));
-        m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass("suzanne.obj", m_device, m_commandList));
+        //m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass("suzanne.obj", m_device, m_commandList));
+        m_modelSphere = std::shared_ptr<ModelClass>(new ModelClass());
+        m_modelSphere->SetFullScreenRectangleModel(m_device, m_commandList);
         m_modelPlane = std::shared_ptr<ModelClass>(new ModelClass());
         m_modelPlane->SetFullScreenRectangleModel(m_device, m_commandList);
         m_fullscreenModel = std::shared_ptr<ModelClass>(new ModelClass());
@@ -435,7 +440,7 @@ void Renderer::LoadAssets()
 
     {
         D3D12_RESOURCE_DESC textureDesc = {};
-        textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, m_windowSize.x, m_windowSize.y);
+        textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R16G16B16A16_FLOAT, m_windowSize.x, m_windowSize.y);
         textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
         m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -447,12 +452,12 @@ void Renderer::LoadAssets()
 
         // Create normal buffer RTV
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 3, m_rtvDescriptorSize);
-        D3D12_RENDER_TARGET_VIEW_DESC normalBufferDesc{};
-        normalBufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        normalBufferDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-        normalBufferDesc.Texture2D.MipSlice = 0;
-        normalBufferDesc.Texture2D.PlaneSlice = 0;
-        m_device->CreateRenderTargetView(m_ssrBuffer.Get(), &normalBufferDesc, rtvHandle);
+        D3D12_RENDER_TARGET_VIEW_DESC ssrBufferDesc{};
+        ssrBufferDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        ssrBufferDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        ssrBufferDesc.Texture2D.MipSlice = 0;
+        ssrBufferDesc.Texture2D.PlaneSlice = 0;
+        m_device->CreateRenderTargetView(m_ssrBuffer.Get(), &ssrBufferDesc, rtvHandle);
     }
 
     {
@@ -475,6 +480,29 @@ void Renderer::LoadAssets()
         normalBufferDesc.Texture2D.MipSlice = 0;
         normalBufferDesc.Texture2D.PlaneSlice = 0;
         m_device->CreateRenderTargetView(m_normalBuffer.Get(), &normalBufferDesc, rtvHandle);
+    }
+
+    {
+        D3D12_RESOURCE_DESC textureDesc = {};
+        textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, m_windowSize.x, m_windowSize.y);
+        textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        textureDesc.MipLevels = 1;
+        m_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+            D3D12_HEAP_FLAG_NONE,
+            &textureDesc,
+            D3D12_RESOURCE_STATE_PRESENT,
+            nullptr,
+            IID_PPV_ARGS(&m_colorBuffer));
+
+        // Create normal buffer RTV
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 4, m_rtvDescriptorSize);
+        D3D12_RENDER_TARGET_VIEW_DESC colorBufferDesc{};
+        colorBufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        colorBufferDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        colorBufferDesc.Texture2D.MipSlice = 0;
+        colorBufferDesc.Texture2D.PlaneSlice = 0;
+        m_device->CreateRenderTargetView(m_colorBuffer.Get(), &colorBufferDesc, rtvHandle);
     }
 
     ComPtr<ID3D12Resource> uploadHeap;
@@ -578,10 +606,13 @@ void Renderer::LoadAssets()
         CreateSRV_Texture2D(m_hiZBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc); // index 11
 
         desc = { DXGI_FORMAT_R32_FLOAT, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
-        CreateSRV_Texture2D(m_visibilityBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc); // index 7
+        CreateSRV_Texture2D(m_visibilityBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc); // index 12
 
         desc = { DXGI_FORMAT_R16G16B16A16_FLOAT, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
         CreateSRV_Texture2D(m_normalBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc); // index 13
+
+        desc = { DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
+        CreateSRV_Texture2D(m_colorBuffer, m_srvHeap.Get(), currentSrvHeapIdx++, m_device.Get(), 1, desc); // index 14
     }
 
     // Close the command list and execute it to begin the initial GPU setup.
@@ -796,7 +827,11 @@ void Renderer::CreateViewAndPerspective()
     constexpr float FOV = 3.14f / 4.0f;
     float aspectRatio = static_cast<float>(m_windowSize.x) / static_cast<float>(m_windowSize.y);
     m_constantBuffer.value.projection = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(FOV, aspectRatio, Z_NEAR, Z_FAR));
-    m_constantBuffer.value.invProjMatrix = DirectX::XMMatrixInverse(nullptr, m_constantBuffer.value.projection);
+    m_constantBuffer.value.invProjMatrix = DirectX::XMMatrixInverse(nullptr, DirectX::XMMatrixTranspose(m_constantBuffer.value.projection));
+    m_constantBuffer.value.invProjMatrix = DirectX::XMMatrixTranspose(m_constantBuffer.value.invProjMatrix);
+
+    XMMATRIX viewProjMatrix = DirectX::XMMatrixMultiply(DirectX::XMMatrixTranspose(m_constantBuffer.value.view), DirectX::XMMatrixTranspose(m_constantBuffer.value.projection));
+    m_constantBuffer.value.invViewProjMatrix = DirectX::XMMatrixInverse(nullptr, DirectX::XMMatrixTranspose(viewProjMatrix));
 }
 
 void Renderer::PopulateCommandList()
@@ -821,13 +856,14 @@ void Renderer::PopulateCommandList()
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
     // Indicate that the back buffer will be used as a render target.
-    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_colorBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle[2];
-    rtvHandle[0] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+    rtvHandle[0] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 4, m_rtvDescriptorSize);
     rtvHandle[1] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 2, m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE ssrHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 3, m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE backBufferHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
     m_commandList->OMSetRenderTargets(2, rtvHandle, FALSE, &dsvHandle);
 
@@ -861,11 +897,12 @@ void Renderer::PopulateCommandList()
         CreateUploadHeapRTCP(m_device.Get(), *ConstantBufferCB);
         ConstantBufferCB->value.world = XMMatrixMultiply(XMMatrixIdentity(), XMMatrixScaling(5.0f, 5.0f, 5.0f));
         ConstantBufferCB->value.world = XMMatrixMultiply(ConstantBufferCB->value.world, XMMatrixRotationX(XMConvertToRadians(90.0f)));
-        ConstantBufferCB->value.world = XMMatrixMultiply(ConstantBufferCB->value.world, XMMatrixTranslation(0.0f, -1.0f, 0.0f));
+        ConstantBufferCB->value.world = XMMatrixMultiply(ConstantBufferCB->value.world, XMMatrixTranslation(0.0f, -0.65f, 0.0f));
         ConstantBufferCB->value.world = XMMatrixTranspose(ConstantBufferCB->value.world);
         ConstantBufferCB->value.view = m_constantBuffer.value.view;
         ConstantBufferCB->value.projection = m_constantBuffer.value.projection;
         ConstantBufferCB->value.invProjMatrix = m_constantBuffer.value.invProjMatrix;
+        ConstantBufferCB->value.invViewProjMatrix = m_constantBuffer.value.invViewProjMatrix;
         ConstantBufferCB->Update();
 
         m_commandList->SetGraphicsRootConstantBufferView(1, ConstantBufferCB->resource->GetGPUVirtualAddress());
@@ -876,7 +913,7 @@ void Renderer::PopulateCommandList()
     m_commandList->DrawInstanced(m_modelPlane->GetIndicesCount(), 1, 0, 0);
 
     // Indicate that the back buffer will now be used to present.
-    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_colorBuffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     //////////////////////
@@ -973,7 +1010,10 @@ void Renderer::PopulateCommandList()
         m_commandList->SetPipelineState(m_ssrPSO.Get());
 
         m_commandList->SetGraphicsRootDescriptorTable(0, ssrSRVs);
+        m_commandList->SetGraphicsRootConstantBufferView(1, m_mip0ConstantBuffer.resource->GetGPUVirtualAddress());
         m_commandList->SetGraphicsRootConstantBufferView(2, m_constantBuffer.resource->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootConstantBufferView(3, m_preintegrateConstantBuffer.resource->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootConstantBufferView(4, m_sceneBuffer.resource->GetGPUVirtualAddress());
 
         m_commandList->OMSetRenderTargets(1, &ssrHandle, FALSE, &dsvHandle);
         m_commandList->IASetVertexBuffers(0, 1, &m_fullscreenModel->GetVertexBufferView());
@@ -1000,9 +1040,12 @@ void Renderer::PopulateCommandList()
     m_commandListSkybox->RSSetScissorRects(1, &m_scissorRect);
 
     // Indicate that the back buffer will be used as a render target.
-    m_commandListSkybox->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+    m_commandListSkybox->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST));
 
-    m_commandListSkybox->OMSetRenderTargets(1, &rtvHandle[0], FALSE, &dsvHandle);
+    m_commandListSkybox->CopyResource(m_backBuffers[m_frameIndex].Get(), m_colorBuffer.Get());
+    m_commandListSkybox->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+    m_commandListSkybox->OMSetRenderTargets(1, &backBufferHandle, FALSE, &dsvHandle);
 
     // Record commands.
     m_commandListSkybox->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

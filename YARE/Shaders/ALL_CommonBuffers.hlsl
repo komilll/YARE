@@ -76,6 +76,10 @@ struct MatricesConstantBuffer
 	matrix viewMatrix;
 	matrix projMatrix;
 	matrix invProjMatrix;
+	matrix invViewProjMatrix;
+	matrix padding_1;
+	matrix padding_2;
+	matrix padding_3;
 };
 
 struct MipConstantBuffer

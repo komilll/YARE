@@ -136,6 +136,7 @@ private:
 	ComPtr<ID3D12Resource> m_visibilityBuffer;
 	ComPtr<ID3D12Resource> m_normalBuffer;
 	ComPtr<ID3D12Resource> m_ssrBuffer;
+	ComPtr<ID3D12Resource> m_colorBuffer;
 
 	// Root signatures/PSO
 	std::shared_ptr<PipelineStateManager> m_psoManager = NULL;
