@@ -26,7 +26,7 @@ void generateHiZMip0(uint3 index : SV_DispatchThreadID)
 {
 	float depthCS = g_depthBuffer.Load(int3(index.xy, 0));
 	float depthVS = depthCStoVS(depthCS);
-	hiZSrc[index.xy] = float2(depthVS, depthVS);
+	hiZSrc[index.xy] = float2(depthCS, depthCS);
 }
 
 [numthreads(16, 16, 1)]

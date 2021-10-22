@@ -77,7 +77,7 @@ private:
 private:
 	static constexpr int m_frameCount = 2;
 	static constexpr float Z_NEAR = 1.0f;
-	static constexpr float Z_FAR = 10.0f;
+	static constexpr float Z_FAR = 50.0f;
 	bool FREEZE_CAMERA = false;
 
 	// Camera settings

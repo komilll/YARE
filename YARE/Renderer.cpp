@@ -20,8 +20,11 @@ void Renderer::OnInit(HWND hwnd)
     m_scissorRect.right = static_cast<LONG>(m_windowSize.x);
     m_scissorRect.bottom = static_cast<LONG>(m_windowSize.y);
 
-    m_cameraPosition = XMFLOAT3{ 0, 2.0f, -6.0f };
-    m_cameraRotation = XMFLOAT3{ 25.0f, 0.0f, 0.0f };
+    //m_cameraPosition = XMFLOAT3{ 0, 2.0f, -6.0f };
+    //m_cameraRotation = XMFLOAT3{ 25.0f, 0.0f, 0.0f };
+
+    m_cameraPosition = XMFLOAT3{ 0, 5.6f, -6.1f };
+    m_cameraRotation = XMFLOAT3{ 56.0f, 0.0f, 0.0f };
 
     // Create initial view and perspective matrix
     CreateViewAndPerspective();
